@@ -85,7 +85,7 @@ else:
         model_ans = q.get('english') or q.get('英語')
         sys_inst = f"英語講師。モデル回答：{model_ans}。100点満点で採点し、日本語で解説。記号や「」は厳禁。"
         res = st.session_state.client.models.generate_content(
-            model='gemini-2.5-flash',
+            model='gemini-2.0-flash',
             config=types.GenerateContentConfig(system_instruction=sys_inst),
             contents=f"生徒回答：{user_ans}"
         )
@@ -119,7 +119,7 @@ else:
     user_query = st.text_input("💡 質問コーナー")
     if user_query:
         res_q = st.session_state.client.models.generate_content(
-            model='gemini-2.5-flash',
+            model='gemini-2.0-flash',
             contents=f"質問：{user_query}\n日本語で回答。"
         )
         st.write(clean_text(res_q.text))
