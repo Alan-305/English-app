@@ -3,21 +3,31 @@ from google import genai
 from google.genai import types
 import pandas as pd
 
-# 1. ページ設定（これを最初に書くことで、水色の画面を確保します）
+# 1. ページ設定（水色の背景を確保）
 st.set_page_config(page_title="基礎S_英語表現T_重要文例Lab", layout="centered")
 
-# --- アプリの見た目（CSS） ---
 st.markdown("""
     <style>
     .stApp { background-color: #D6EAF8; }
     </style>
     """, unsafe_allow_html=True)
 
-# --- データの読み込み ---
+# 2. Geminiの接続準備（正式窓口 v1 を使用）
+if 'client' not in st.session_state:
+    try:
+        st.session_state.client = genai.Client(
+            api_key=st.secrets["GEMINI_API_KEY"],
+            http_options={'api_version': 'v1'}
+        )
+    except Exception as e:
+        st.error(f"接続の準備に失敗しました: {e}")
+
+# 3. データの読み込み
 if 'quiz_list' not in st.session_state:
     try:
         df = pd.read_csv('questions.csv')
-        df.columns = df.columns.str.strip().str.lower() # 名前を小文字で統一
+        # CSVの見出しを小文字にして空白を除く
+        df.columns = df.columns.str.strip().str.lower()
         st.session_state.quiz_list = df.to_dict('records')
         st.session_state.current_idx = 0
         st.session_state.show_feedback = False
@@ -25,19 +35,7 @@ if 'quiz_list' not in st.session_state:
         st.error(f"CSV読み込みエラー: {e}")
         st.stop()
 
-# --- Geminiの接続準備（エラーが起きても画面は止めない） ---
-if 'client' not in st.session_state:
-    try:
-if 'client' not in st.session_state:
-    try:
-        st.session_state.client = genai.Client(
-            api_key=st.secrets["GEMINI_API_KEY"],
-            http_options={'api_version': 'v1'} # ここがポイント！
-        )
-    except Exception as e:
-        st.warning("APIキーを確認中...")
-
-# --- メイン画面の表示 ---
+# --- メイン画面 ---
 st.title("基礎S_英語表現T_重要文例Lab")
 
 q = st.session_state.quiz_list[st.session_state.current_idx]
@@ -49,8 +47,8 @@ col1, col2 = st.columns(2)
 
 with col1:
     if st.button("採点"):
-        # 2026年3月現在、最も新しく、制限がかからないはずのモデル名
-        target_model = 'gemini-1.5-flash' 
+        # 2026年現在、正式版窓口で最も安定しているモデル名
+        target_model = 'gemini-1.5-flash'
         
         sys_inst = f"あなたは英語教師です。解答を採点し、正解例 {q['english']} と比較して解説してください。"
         
@@ -62,8 +60,7 @@ with col1:
             st.session_state.feedback_text = res.text
             st.session_state.show_feedback = True
         except Exception as e:
-            # エラーが出た場合、その場で別の最新モデルを自動的に試す
-            st.error(f"採点中にエラーが発生しました。別のモデルで再試行してください。\n詳細: {e}")
+            st.error(f"採点エラー詳細: {e}")
 
 with col2:
     if st.button("次へ"):
@@ -72,7 +69,7 @@ with col2:
             st.session_state.show_feedback = False
             st.rerun()
         else:
-            st.success("全問終了です！")
+            st.success("全問終了です！お疲れ様でした！")
 
 if st.session_state.show_feedback:
     st.info(st.session_state.feedback_text)
