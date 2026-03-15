@@ -66,6 +66,10 @@ with col1:
             )
             st.session_state.feedback_text = res.text
             st.session_state.show_feedback = True
+            
+            # --- ここを追加：正解例と一致（大文字小文字は無視）したらバルーン！ ---
+            if user_ans.strip().lower() == q['english'].strip().lower():
+                st.balloons()        
         except Exception as e:
             st.error(f"採点エラー詳細: {e}")
 
