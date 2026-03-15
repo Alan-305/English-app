@@ -28,9 +28,14 @@ if 'quiz_list' not in st.session_state:
 # --- Geminiの接続準備（エラーが起きても画面は止めない） ---
 if 'client' not in st.session_state:
     try:
-        st.session_state.client = genai.Client(api_key=st.secrets["GEMINI_API_KEY"])
+if 'client' not in st.session_state:
+    try:
+        st.session_state.client = genai.Client(
+            api_key=st.secrets["GEMINI_API_KEY"],
+            http_options={'api_version': 'v1'} # ここがポイント！
+        )
     except Exception as e:
-        st.warning("APIキーが設定されるのを待っています...")
+        st.warning("APIキーを確認中...")
 
 # --- メイン画面の表示 ---
 st.title("基礎S_英語表現T_重要文例Lab")
