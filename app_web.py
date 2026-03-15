@@ -27,8 +27,7 @@ if 'current_idx' not in st.session_state:
 st.title("基礎S_英語表現T_重要文例Lab")
 
 q = st.session_state.quiz_list[st.session_state.current_idx]
-st.subheader(f"Problem {q['No']}: {q['Japanese']}")
-
+st.subheader(f"Problem {st.session_state.current_idx + 1}: {q['japanese']}")
 user_ans = st.text_input("Answer:", key=f"input_{st.session_state.current_idx}")
 
 col1, col2 = st.columns(2)
@@ -36,7 +35,7 @@ col1, col2 = st.columns(2)
 with col1:
     if st.button("採点"):
         # 採点ロジック
-        sys_inst = f"あなたは英語教師です。以下の解答を採点し、{q['English']} と比較して解説してください。"
+        sys_inst = f"あなたは英語教師です。以下の解答を採点し、{q['english']} と比較して解説してください。"
         try:
             res = st.session_state.client.models.generate_content(
                 model='gemini-1.5-flash',
@@ -59,4 +58,4 @@ with col2:
 
 if st.session_state.show_feedback:
     st.info(st.session_state.feedback_text)
-    st.write(f"正解例: {q['English']}")
+    st.write(f"正解例: {q['english']}")
