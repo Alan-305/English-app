@@ -3,7 +3,7 @@ from google import genai
 from google.genai import types
 import pandas as pd
 
-# 1. ページ設定
+# 1. ページ設定（水色の背景を確保）
 st.set_page_config(page_title="基礎S_英語表現T_重要文例Lab", layout="centered")
 
 st.markdown("""
@@ -12,23 +12,15 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# 2. Geminiの準備と「使えるモデル」の自動検索
+# 2. Geminiの準備（SDKにお任せする2026年標準設定）
 if 'client' not in st.session_state:
     try:
-        # 窓口をデフォルトに戻して接続
-        client = genai.Client(api_key=st.secrets["GEMINI_API_KEY"])
-        st.session_state.client = client
-        
-        # --- ここが重要：今使えるモデルをGoogleに聞いて、一番いいものを選ぶ ---
-        available_models = [m.name for m in client.models.list() if 'flash' in m.name.lower()]
-        if available_models:
-            # 例: 'models/gemini-2.0-flash' などが見つかる
-            st.session_state.target_model = available_models[0]
-        else:
-            st.session_state.target_model = 'gemini-2.0-flash' # 保険
-            
+        st.session_state.client = genai.Client(api_key=st.secrets["GEMINI_API_KEY"])
+        # 使えるモデルを自動取得
+        available_models = [m.name for m in st.session_state.client.models.list() if 'flash' in m.name.lower()]
+        st.session_state.target_model = available_models[0] if available_models else 'gemini-1.5-flash'
     except Exception as e:
-        st.error(f"接続の準備でエラーが発生しました: {e}")
+        st.error(f"接続の準備に失敗しました: {e}")
 
 # 3. データの読み込み
 if 'quiz_list' not in st.session_state:
@@ -45,10 +37,6 @@ if 'quiz_list' not in st.session_state:
 # --- メイン画面 ---
 st.title("基礎S_英語表現T_重要文例Lab")
 
-# 自動で見つかったモデル名をこっそり表示（デバッグ用）
-if 'target_model' in st.session_state:
-    st.caption(f"使用中のAIエンジン: {st.session_state.target_model}")
-
 q = st.session_state.quiz_list[st.session_state.current_idx]
 st.subheader(f"Problem {st.session_state.current_idx + 1}: {q['japanese']}")
 
@@ -58,20 +46,24 @@ col1, col2 = st.columns(2)
 
 with col1:
     if st.button("採点"):
-        sys_inst = f"あなたは親切な日本人の英語教師です。生徒の解答を採点し、必ず【日本語で】正解例 {q['english']} と比較しながら詳しく解説してください。"        
+        # 日本語で、と強く指示します
+        sys_inst = f"あなたは親切な日本人の英語教師です。生徒の解答を採点し、必ず【日本語のみ】を使って、正解例 {q['english']} と比較しながら詳しく解説してください。"
+        
         try:
             res = st.session_state.client.models.generate_content(
-                model=st.session_state.target_model, # 自動検知したモデルを使用
+                model=st.session_state.target_model,
+                config=types.GenerateContentConfig(system_instruction=sys_inst),
                 contents=f"生徒回答：{user_ans}"
             )
             st.session_state.feedback_text = res.text
             st.session_state.show_feedback = True
             
-            # --- ここを追加：正解例と一致（大文字小文字は無視）したらバルーン！ ---
+            # --- 正解ならバルーンを飛ばす！ ---
             if user_ans.strip().lower() == q['english'].strip().lower():
-                st.balloons()        
+                st.balloons()
+                
         except Exception as e:
-            st.error(f"採点エラー詳細: {e}")
+            st.error(f"採点エラー: {e}")
 
 with col2:
     if st.button("次へ"):
