@@ -38,7 +38,7 @@ with col1:
         sys_inst = f"あなたは英語教師です。以下の解答を採点し、{q['english']} と比較して解説してください。"
         try:
             res = st.session_state.client.models.generate_content(
-                model='gemini-2.0-flash',
+                model='gemini-3.0-flash',
                 config=types.GenerateContentConfig(system_instruction=sys_inst),
                 contents=f"生徒回答：{user_ans}"
             )
