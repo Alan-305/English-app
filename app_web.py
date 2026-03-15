@@ -45,8 +45,7 @@ with col1:
             st.session_state.feedback_text = res.text
             st.session_state.show_feedback = True
         except Exception as e:
-            st.error(f"接続エラーが発生しました。APIキーを確認してください。")
-
+            st.error(f"エラー詳細: {e}")
 with col2:
     if st.button("次へ"):
         if st.session_state.current_idx < len(st.session_state.quiz_list) - 1:
