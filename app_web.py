@@ -47,8 +47,7 @@ col1, col2 = st.columns(2)
 with col1:
     if st.button("採点"):
         # 日本語で、と強く指示します
-        sys_inst = f"あなたは親切な日本人の英語教師です。生徒の解答を採点し、必ず【日本語のみ】を使って、正解例 {q['english']} と比較しながら詳しく解説してください。"
-        
+        sys_inst = f"あなたは親切な日本人の英語教師です。解答を採点し、必ず【日本語のみ】で正解例 {q['english']} と比較して解説してください。回答の冒頭に大きな見出し（#や##）を使わず、太字（**）などを使って標準的な文字サイズで読みやすく構成してください。"        
         try:
             res = st.session_state.client.models.generate_content(
                 model=st.session_state.target_model,
