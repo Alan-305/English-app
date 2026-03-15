@@ -58,8 +58,7 @@ col1, col2 = st.columns(2)
 
 with col1:
     if st.button("採点"):
-        sys_inst = f"あなたは英語教師です。解答を採点し、正解例 {q['english']} と比較して解説してください。"
-        try:
+        sys_inst = f"あなたは親切な日本人の英語教師です。生徒の解答を採点し、必ず【日本語で】正解例 {q['english']} と比較しながら詳しく解説してください。"        try:
             res = st.session_state.client.models.generate_content(
                 model=st.session_state.target_model, # 自動検知したモデルを使用
                 contents=f"生徒回答：{user_ans}"
