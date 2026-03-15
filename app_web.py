@@ -1,6 +1,5 @@
 import streamlit as st
-from google import genai
-from google.genai import types
+import google.generativeai as genai
 import pandas as pd
 import random
 from gtts import gTTS
@@ -16,21 +15,18 @@ st.markdown("""
     .stButton>button { width: 100%; border-radius: 10px; height: 3.5em; font-weight: bold; font-size: 1.1em; }
     h1, h2, h3 { color: #1B4F72; }
     .stTextInput>div>div>input { font-size: 1.2em; }
-    /* カメラ入力のUI調整 */
-    .stCameraInput { margin-bottom: 1em; }
     </style>
     """, unsafe_allow_html=True)
 
-# 2. 初期設定
-if 'client' not in st.session_state:
+# 2. AIの初期設定（最も安定した認証方式に変更）
+if 'ai_configured' not in st.session_state:
     try:
-        st.session_state.client = genai.Client(api_key=st.secrets["GEMINI_API_KEY"])
-        # モデルリスト取得
-        models = st.session_state.client.models.list()
-        available_models = [m.name for m in models if 'flash' in m.name.lower()]
-        st.session_state.target_model = available_models[0] if available_models else 'gemini-2.0-flash'
+        genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
+        st.session_state.ai_configured = True
+        # 安定版のモデル名を指定
+        st.session_state.target_model = 'gemini-1.5-flash'
     except Exception as e:
-        st.error(f"AIの準備に失敗しました。APIキーを確認してください: {e}")
+        st.error(f"AIの準備に失敗しました。Secretsの設定を確認してください: {e}")
 
 # 3. データの読み込み
 if 'all_questions' not in st.session_state:
@@ -56,7 +52,7 @@ if st.sidebar.button("この設定で開始/リセット"):
     st.session_state.current_idx = 0
     st.session_state.show_feedback = False
     st.session_state.feedback_text = ""
-    st.session_state.ocr_text = "" # OCR結果の初期化
+    st.session_state.ocr_text = ""
     st.rerun()
 
 # --- メイン画面 ---
@@ -70,44 +66,45 @@ q = st.session_state.current_list[st.session_state.current_idx]
 st.subheader(f"問 {q['no']}: {q['japanese']}")
 st.caption(f"（{q['kou']} - {st.session_state.current_idx + 1} / {len(st.session_state.current_list)} 問目）")
 
-# --- 【新機能】カメラ/写真による文字起こし ---
-with st.expander("📷 写真を撮って/アップして入力（OCR）"):
-    uploaded_file = st.file_uploader("ノートや手書きの答えをアップロード", type=['png', 'jpg', 'jpeg'])
+# --- カメラ/写真による文字起こし ---
+with st.expander("📷 写真から解答を入力（OCR機能）"):
+    input_image = st.file_uploader("ノートや手書きの答えをアップロード", type=['png', 'jpg', 'jpeg'], key="uploader")
     camera_file = st.camera_input("カメラで撮影")
     
-    input_image = camera_file if camera_file else uploaded_file
+    target_img = camera_file if camera_file else input_image
     
-    if input_image and st.button("文字起こし実行"):
-        with st.spinner("AIが文字を読み取っています..."):
+    if target_img and st.button("AIで文字起こしを実行"):
+        with st.spinner("AIが英文を読み取っています..."):
             try:
-                img = Image.open(input_image)
-                ocr_res = st.session_state.client.models.generate_content(
-                    model=st.session_state.target_model,
-                    contents=["この画像に書かれている『英文のみ』を書き出してください。余計な解説は不要です。", img]
-                )
+                img = Image.open(target_img)
+                model = genai.GenerativeModel(st.session_state.target_model)
+                ocr_res = model.generate_content(["この画像に書かれている英文のみをテキストとして書き出してください。解説は不要です。", img])
                 st.session_state.ocr_text = ocr_res.text.strip()
-                st.success("文字起こし完了！下の入力欄に反映されました。")
+                st.success("読み取り完了！下の欄に反映されました。")
             except Exception as e:
                 st.error(f"文字起こしエラー: {e}")
 
-# 解答入力欄（OCR結果があればそれを初期値にする）
+# 解答入力欄
 user_ans = st.text_input("あなたの答え:", value=st.session_state.get('ocr_text', ""), key=f"input_{st.session_state.current_idx}")
 
 col1, col2, col3 = st.columns(3)
 
 with col1:
     if st.button("採点"):
-        sys_inst = f"あなたは親切な日本人の英語教師です。解答を採点し、必ず【日本語のみ】で正解例 {q['english']} と比較して解説してください。見出しを使わず、標準的な文字サイズで読みやすく回答してください。文法的に正しければ大いに褒め、バルーンでお祝いしてください。"
+        prompt = f"""
+        あなたは親切な日本人の英語教師です。
+        【正解例】: {q['english']}
+        【生徒の回答】: {user_ans}
+        上記を比較し、採点と解説を日本語のみで行ってください。
+        大きな見出しを使わず、標準サイズで読みやすく回答してください。
+        """
         try:
-            res = st.session_state.client.models.generate_content(
-                model=st.session_state.target_model,
-                contents=f"生徒回答：{user_ans}",
-                config=types.GenerateContentConfig(system_instruction=sys_inst)
-            )
+            model = genai.GenerativeModel(st.session_state.target_model)
+            res = model.generate_content(prompt)
             st.session_state.feedback_text = res.text
             st.session_state.show_feedback = True
             
-            # 桜（バルーン）判定
+            # 桜を咲かせる（バルーン）判定
             user_clean = "".join(e for e in user_ans if e.isalnum()).lower()
             correct_clean = "".join(e for e in q['english'] if e.isalnum()).lower()
             if user_clean == correct_clean:
@@ -118,14 +115,14 @@ with col1:
 with col2:
     if st.button("正解と音声"):
         st.session_state.show_feedback = True
-        st.session_state.feedback_text = "正解例と音声を確認して、音読してみましょう！"
+        st.session_state.feedback_text = "正解と音声を確認しましょう。"
 
 with col3:
     if st.button("次へ"):
         if st.session_state.current_idx < len(st.session_state.current_list) - 1:
             st.session_state.current_idx += 1
             st.session_state.show_feedback = False
-            st.session_state.ocr_text = "" # 次の問題へ行くときにOCR結果をクリア
+            st.session_state.ocr_text = ""
             st.rerun()
         else:
             st.success("全ての選んだ問題が終わりました！")
