@@ -20,17 +20,21 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- 初期化 ---
+# --- Geminiの初期設定（アプリ起動時に1回だけ実行） ---
 if 'client' not in st.session_state:
-   st.session_state.client = genai.Client(api_key=st.secrets["GEMINI_API_KEY"])
-   if 'questions' not in st.session_state:
-    # 同階層のCSVを読み込み
+    try:
+        # SecretsからAPIキーを読み込んでGeminiを準備
+        st.session_state.client = genai.Client(api_key=st.secrets["GEMINI_API_KEY"])
+    except Exception as e:
+        st.error(f"APIキーの設定に問題があります: {e}")
+
+# --- 問題データの読み込み ---
+if 'quiz_list' not in st.session_state:
     try:
         df = pd.read_csv('questions.csv')
-        st.session_state.questions = df.to_dict('records')
-    except:
-        st.error("questions.csvが見つかりません。")
-
+        st.session_state.quiz_list = df.to_dict('records')
+    except Exception as e:
+        st.error(f"CSVファイルの読み込みに失敗しました: {e}")
 if 'current_idx' not in st.session_state:
     st.session_state.current_idx = 0
     st.session_state.quiz_list = []
