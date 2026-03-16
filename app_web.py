@@ -9,7 +9,7 @@ from streamlit_cropper import st_cropper
 import datetime
 import requests
 
-# 1. ページ設定とスマホ向けデザイン
+# 1. ページ設定とデザイン
 st.set_page_config(page_title="基礎シリーズ 英語②T", layout="centered")
 
 st.markdown("""
@@ -34,9 +34,12 @@ st.markdown("""
         background-color: #fff9f0; padding: 15px; border-radius: 10px; 
         border-left: 6px solid #f39c12; font-size: 1.05em; color: #5d4037; 
     }
-    .feedback-container b { font-family: 'serif'; font-size: 1.3em; color: #784212; background-color: #fff3e0; padding: 0 4px; }
+    /* 解説の中の英文。太字指定された箇所のみ大きく表示 */
+    .feedback-container b, .feedback-container strong { 
+        font-family: 'serif'; font-size: 1.3em; color: #784212; 
+        background-color: #fff3e0; padding: 0 4px; font-weight: bold;
+    }
     .model-answer-text { font-family: 'serif'; font-size: 1.35em; font-weight: bold; margin-top: 15px; color: #784212; border-top: 1px dashed #ffcc80; padding-top: 10px; }
-    .hint-label { color: #d35400; font-weight: bold; font-size: 0.9em; margin-bottom: 5px; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -117,7 +120,7 @@ with tab4:
     WEB_APP_URL = "https://script.google.com/macros/s/XXXXX/exec" 
     with st.form(key="support_form", clear_on_submit=True):
         sender = st.text_input("お名前")
-        msg = st.text_area("メッセージ内容（質問や感想など）")
+        msg = st.text_area("メッセージ内容")
         if st.form_submit_button("先生に送信する"):
             if WEB_APP_URL.startswith("http"):
                 requests.post(WEB_APP_URL, json={"name": sender, "message": msg})
@@ -125,28 +128,36 @@ with tab4:
 
 # --- ヒント機能 ---
 st.markdown("---")
-with st.expander("💡 助けが必要ですか？（ヒント）"):
+with st.expander("💡 ヒント（文字または音声）"):
     h_col1, h_col2 = st.columns(2)
     with h_col1:
-        if st.button("文字で見る"):
-            st.info(f"英文のヒント: {q['english'][:5]}...") # 冒頭のみ表示
+        if st.button("文字で見る"): st.info(f"冒頭: {q['english'][:5]}...")
     with h_col2:
         if st.button("音声を聞く"):
             tts_h = gTTS(q['english'], lang='en')
-            audio_fp_h = io.BytesIO()
-            tts_h.write_to_fp(audio_fp_h)
-            st.audio(audio_fp_h)
+            af_h = io.BytesIO()
+            tts_h.write_to_fp(af_h)
+            st.audio(af_h)
 
-# --- アクション ---
+# --- 採点アクション ---
 if st.button("🚀 採点する"):
+    # 音声ファイルが存在すれば、録音停止ボタンを押していなくてもデータを取得可能
     if not (cropped_image or user_text or audio_file):
         st.warning("いずれかの方法で解答を提出してください。")
     else:
         with st.spinner("AI採点中..."):
             try:
                 model = genai.GenerativeModel(st.session_state.target_model)
-                # 1行目を「あなたの英語：」にするよう指示を強化
-                inst = f"正解例『{q['english']}』と比較。1行目に必ず『あなたの英語：[文字起こし結果]』、次に日本語で添削。英文は太字。正解なら『正解です』と含める。正解例の解説は不要。"
+                # 1. 1行目の**を禁止、2. 解説中の「」を禁止する指示を追加
+                inst = f"""
+                正解例『{q['english']}』と比較し、以下の形式で添削してください。
+                - 1行目は『あなたの英語：[文字起こし結果]』としてください。**（太字）などの装飾は一切不要です。
+                - 2行目以降に日本語で添削・アドバイスを書いてください。
+                - 解説の中で英文を引用する場合は必ず **（太字）で囲んでください。
+                - ただし、英文の周りに「」や『』などの日本語の引用符は絶対に使わないでください。
+                - 正解例そのものの解説は不要です。
+                - 正解なら文中に『正解です』と含めてください。
+                """
                 if audio_file: res = model.generate_content([inst, {"mime_type": "audio/wav", "data": audio_file.read()}])
                 elif cropped_image: res = model.generate_content([inst, cropped_image])
                 else: res = model.generate_content(f"{inst}\n生徒：{user_text}")
@@ -156,6 +167,7 @@ if st.button("🚀 採点する"):
 
 if st.session_state.show_feedback:
     st.markdown("---")
+    # 解説ボックスを表示
     st.markdown(f"<div class='feedback-container'><div>{st.session_state.feedback_text}</div><div class='model-answer-text'>模範解答：{q['english']}</div></div>", unsafe_allow_html=True)
     
     tts = gTTS(q['english'], lang='en')
