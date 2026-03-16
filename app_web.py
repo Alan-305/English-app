@@ -9,68 +9,33 @@ from streamlit_cropper import st_cropper
 import datetime
 import requests
 
-# 1. ページ設定とスマホ特化デザイン（カメラ画面最大化）
+# 1. ページ設定とスマホ特化デザイン
 st.set_page_config(page_title="基礎シリーズ 英語②T", layout="centered")
 
 st.markdown("""
 <style>
-    /* 全体の背景 */
     .stApp { background: linear-gradient(135deg, #ffffff 0%, #fff3e0 100%); }
-    
-    /* タイトル */
     .main-title { 
         color: #e67e22; text-align: center; font-weight: 700; 
         font-size: 1.5em; padding: 10px 0; border-bottom: 3px solid #ffcc80; 
         font-family: 'serif'; margin-bottom: 15px;
     }
-
-    /* カメラ画面（ファインダー）を限界まで大きく表示 */
-    [data-testid="stCameraInput"] {
-        width: 100% !important;
-        max-width: 100% !important;
-    }
-    [data-testid="stCameraInput"] > div {
-        width: 100% !important;
-    }
-    [data-testid="stCameraInput"] video {
-        border-radius: 10px !important;
-        width: 100% !important;
-        height: auto !important;
-        aspect-ratio: 4 / 3 !important; /* スマホで見やすい比率に固定 */
-    }
+    [data-testid="stCameraInput"] { width: 100% !important; }
+    [data-testid="stCameraInput"] video { border-radius: 10px !important; width: 100% !important; height: auto !important; aspect-ratio: 4/3 !important; }
     
-    /* ボタンデザイン */
     div.stButton > button { 
         background-color: #f39c12 !important; color: white !important; 
         border-radius: 15px !important; height: 3.5em !important; 
         font-size: 1.1em !important; font-weight: bold !important; 
         border: none !important; width: 100%; margin-bottom: 8px;
     }
-
-    /* メインコンテンツのカード */
     div[data-testid="stVerticalBlock"] > div:has(div.stTabs) { 
         background-color: white !important; padding: 15px !important; 
         border-radius: 15px !important; border: 1px solid #ffe0b2 !important; 
     }
-
-    /* 解説ボックス */
-    .feedback-container { 
-        background-color: #fff9f0; padding: 15px; border-radius: 10px; 
-        border-left: 6px solid #f39c12; font-size: 1.1em; color: #5d4037; 
-    }
-
-    /* 解説の中の英文。AIが出力した <b> タグの中身を大きく表示 */
-    .feedback-container b, .feedback-container strong { 
-        font-family: 'serif'; font-size: 1.35em; color: #784212; 
-        background-color: #fff3e0; padding: 0 4px; font-weight: bold;
-    }
-
-    /* 模範解答 */
-    .model-answer-text { 
-        font-family: 'serif'; font-size: 1.4em; font-weight: bold; 
-        margin-top: 15px; color: #784212; border-top: 1px dashed #ffcc80; 
-        padding-top: 10px; 
-    }
+    .feedback-container { background-color: #fff9f0; padding: 15px; border-radius: 10px; border-left: 6px solid #f39c12; font-size: 1.1em; color: #5d4037; }
+    .feedback-container b, .feedback-container strong { font-family: 'serif'; font-size: 1.35em; color: #784212; background-color: #fff3e0; padding: 0 4px; font-weight: bold; }
+    .model-answer-text { font-family: 'serif'; font-size: 1.4em; font-weight: bold; margin-top: 15px; color: #784212; border-top: 1px dashed #ffcc80; padding-top: 10px; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -103,20 +68,17 @@ if st.sidebar.button("最初からリセット"):
     st.rerun()
 
 kous = sorted(list(set([q['kou'] for q in st.session_state.all_questions])))
-# defaultに何も入れないことで、選択前の「No results」的な表示を防ぐ
 selected_kous = st.sidebar.multiselect("講を選択", kous)
 
 if st.sidebar.button("学習スタート"):
-    if not selected_kous:
-        st.sidebar.warning("講を選択してください。")
-    else:
+    if selected_kous:
         selected_data = [q for q in st.session_state.all_questions if q['kou'] in selected_kous]
         if selected_data:
             st.session_state.current_list, st.session_state.current_idx, st.session_state.score = selected_data, 0, 0
             st.session_state.finished, st.session_state.show_feedback = False, False
             st.rerun()
 
-# --- メイン画面（選択前はスッキリさせる） ---
+# --- メイン画面 ---
 if st.session_state.current_list is None:
     st.markdown("<h1 class='main-title'>基礎シリーズ 英語②T（表現）</h1>", unsafe_allow_html=True)
     st.info("左側のメニューから「講」を選んで「学習スタート」を押してください。")
@@ -130,7 +92,6 @@ if st.session_state.finished:
         st.rerun()
     st.stop()
 
-# --- 学習メイン ---
 st.markdown("<h1 class='main-title'>基礎シリーズ 英語②T（表現）</h1>", unsafe_allow_html=True)
 q = st.session_state.current_list[st.session_state.current_idx]
 st.markdown(f"<p style='color:#784212; margin-bottom:5px;'>第{q['no']}問 ({st.session_state.current_idx + 1}/{len(st.session_state.current_list)})</p><h3 style='color:#784212; margin-top:0;'>{q['japanese']}</h3>", unsafe_allow_html=True)
@@ -144,10 +105,8 @@ with tab1:
     img_file = st.file_uploader("画像から選択", type=['png', 'jpg', 'jpeg'], key=f"u_{st.session_state.current_idx}")
     raw = cam_file if cam_file else img_file
     if raw:
-        # st_cropperの不必要な表示（No resultsなど）を防ぐためのチェック
-        try:
-            cropped_image = st_cropper(Image.open(raw), realtime_update=True, box_color='#f39c12', aspect_ratio=None)
-        except: st.error("画像の読み込みに失敗しました。")
+        try: cropped_image = st_cropper(Image.open(raw), realtime_update=True, box_color='#f39c12', aspect_ratio=None)
+        except: st.error("エラーが発生しました。")
 
 with tab2: user_text = st.text_input("回答をタイピング", key=f"t_{st.session_state.current_idx}")
 with tab3: audio_file = st.audio_input("録音して提出", key=f"a_{st.session_state.current_idx}")
@@ -170,8 +129,7 @@ with st.expander("💡 ヒント（文字または音声）"):
     with h_col1:
         if st.button("文字で見る"):
             words = q['english'].split()
-            hint_text = " ".join(words[:3]) + " ..."
-            st.info(f"冒頭: {hint_text}")
+            st.info(f"冒頭: {' '.join(words[:3])} ...")
     with h_col2:
         if st.button("音声を聞く"):
             tts_h = gTTS(q['english'], lang='en')
@@ -182,43 +140,39 @@ with st.expander("💡 ヒント（文字または音声）"):
 # --- 採点アクション ---
 if st.button("🚀 採点する"):
     if not (cropped_image or user_text or audio_file):
-        st.warning("いずれかの方法で解答を提出してください。")
+        st.warning("解答を提出してください。")
     else:
-        with st.spinner("厳格に採点中..."):
+        with st.spinner("採点中..."):
             try:
                 model = genai.GenerativeModel(st.session_state.target_model)
                 inst = f"""
-                あなたは経験豊富な英語予備校講師です。正解例『{q['english']}』と比較し、以下の通り厳格に添削してください。
-                - 1行目は必ず『あなたの英語：<b>[英文]</b>』としてください。アスタリスク(**)などの記号は一切使わないこと。
-                - 綴り、冠詞、単複、前置詞など細部を厳密に確認してください。
-                - ミスがある場合は『惜しいです！ここを見直しましょう』という前向きなトーンで。
-                - 不合格という言葉は絶対に使わないでください。
-                - 解説の中の英文は必ず <b>英文</b> のようにHTMLタグで囲み、それ以外の記号（**や「」『』など）は絶対に使わないでください。
-                - 正解例そのものの解説は不要です。
-                - 完璧な解答のみ『正解です』と認めてください。
+                あなたは英語予備校講師です。正解例『{q['english']}』と比較し、以下の通り添削してください。
+                - 1行目は必ず『あなたの英語：<b>[英文]</b>』としてください。記号(**)は一切使わないこと。
+                - 綴り、冠詞、単複を厳密に確認。ただし、正解例と単語が違っても、完全に意味が通じ文法的に正しい場合は正解としてください。
+                - ミスがある場合は『惜しいです！ここを見直しましょう』と前向きに指摘。「不合格」は禁止。
+                - 解説の英文は <b>英文</b> とタグで囲み、それ以外の記号（**や「」『』）は絶対に使わないこと。
+                - 模範解答そのものの解説は不要。
+                - 正解または妥当な別解の場合は、必ず文中に『正解です』と含めてください。
                 """
                 if audio_file: res = model.generate_content([inst, {"mime_type": "audio/wav", "data": audio_file.read()}])
                 elif cropped_image: res = model.generate_content([inst, cropped_image])
                 else: res = model.generate_content(f"{inst}\n生徒：{user_text}")
                 
-                # 強制フィルタ：記号や引用符を徹底的に排除 [cite: 2026-03-16]
-                cleaned_text = res.text.replace("**", "").replace("「", "").replace("」", "").replace("『", "").replace("』", "")
-                st.session_state.feedback_text, st.session_state.show_feedback = cleaned_text, True
-                if "正解です" in cleaned_text: st.session_state.score += 1; st.balloons()
+                # 強制フィルタ [cite: 2026-03-16]
+                cleaned = res.text.replace("**", "").replace("「", "").replace("」", "").replace("『", "").replace("』", "")
+                st.session_state.feedback_text, st.session_state.show_feedback = cleaned, True
+                if "正解です" in cleaned: st.session_state.score += 1; st.balloons()
             except Exception as e: st.error(f"Error: {e}")
 
 if st.session_state.show_feedback:
     st.markdown("---")
     st.markdown(f"<div class='feedback-container'><div>{st.session_state.feedback_text}</div><div class='model-answer-text'>模範解答：{q['english']}</div></div>", unsafe_allow_html=True)
-    
     tts = gTTS(q['english'], lang='en')
     audio_fp = io.BytesIO()
     tts.write_to_fp(audio_fp)
     st.audio(audio_fp)
-
     if st.button("次へ進む ➔"):
-        if st.session_state.current_idx < len(st.session_state.current_list) - 1:
-            st.session_state.current_idx += 1
-            st.session_state.show_feedback = False
-            st.rerun()
-        else: st.session_state.finished = True; st.rerun()
+        st.session_state.current_idx += 1
+        if st.session_state.current_idx >= len(st.session_state.current_list): st.session_state.finished = True
+        st.session_state.show_feedback = False
+        st.rerun()
