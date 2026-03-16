@@ -1,6 +1,5 @@
-import streamlit as st
-import google.generativeai as genai
-import pandas as pd
+import os
+os.system("pip install google-generativeai gTTS Pillow")import pandas as pd
 import random
 from gtts import gTTS
 import io
