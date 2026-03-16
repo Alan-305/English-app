@@ -1,5 +1,6 @@
 import os
-os.system("pip install google-generativeai gTTS Pillow")import pandas as pd
+os.system("pip install google-generativeai gTTS Pillow")
+import pandas as pd
 import random
 from gtts import gTTS
 import io
