@@ -35,7 +35,6 @@ st.markdown("""
         background-color: #fff9f0; padding: 15px; border-radius: 10px; 
         border-left: 6px solid #f39c12; font-size: 1.1em; color: #5d4037; 
     }
-    /* 解説の中の英文を記号なしで大きく表示 */
     .feedback-container b, .feedback-container strong { 
         font-family: 'serif'; font-size: 1.35em; color: #784212; 
         background-color: #fff3e0; padding: 0 4px; font-weight: bold;
@@ -146,24 +145,25 @@ with st.expander("💡 ヒント（文字または音声）"):
 # --- 採点アクション ---
 if st.button("🚀 採点する"):
     if not (cropped_image or user_text or audio_file):
-        st.warning("解答を提出してください。")
+        st.warning("いずれかの方法で解答を提出してください。")
     else:
-        with st.spinner("厳格に採点中..."):
+        with st.spinner("添削中..."):
             try:
                 model = genai.GenerativeModel(st.session_state.target_model)
                 inst = f"""
-                あなたは厳しい英語予備校講師です。正解例『{q['english']}』と比較し、以下の通り厳格に添削してください。
+                あなたは経験豊富な英語予備校講師です。正解例『{q['english']}』と比較し、以下の通り添削してください。
                 - 1行目は必ず『あなたの英語：<b>[英文]</b>』としてください。アスタリスクや記号は絶対に使わないこと。
-                - 綴り、冠詞の有無、単複、前置詞の選択など、細部まで厳格にチェックしてください。
-                - わずかでもミスがあれば正解とは認めず、具体的にどこが誤りか日本語で指摘してください。
-                - 解説の中の英文は必ず <b>英文</b> のようにHTMLタグで囲み、それ以外の「」や『』、** などの記号は一切使わないでください。
-                - 正解例そのものの解説は不要です。
+                - 綴り、冠詞、単複、前置詞など細部を厳密に確認してください。
+                - ミスがある場合は『惜しいです！ここを見直しましょう』というトーンで、具体的に誤りを日本語で指摘してください。
+                - 「不合格」という言葉は絶対に使わないでください。
+                - 解説の中の英文は <b>英文</b> のようにHTMLタグで囲み、それ以外の記号（**や「」『』など）は一切使わないでください。
                 - 完璧な解答のみ『正解です』と認めてください。
                 """
                 if audio_file: res = model.generate_content([inst, {"mime_type": "audio/wav", "data": audio_file.read()}])
                 elif cropped_image: res = model.generate_content([inst, cropped_image])
                 else: res = model.generate_content(f"{inst}\n生徒：{user_text}")
                 
+                # 強制フィルタ
                 cleaned_text = res.text.replace("**", "").replace("「", "").replace("」", "").replace("『", "").replace("』", "")
                 st.session_state.feedback_text, st.session_state.show_feedback = cleaned_text, True
                 if "正解です" in cleaned_text: st.session_state.score += 1; st.balloons()
