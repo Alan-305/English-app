@@ -6,79 +6,38 @@ from gtts import gTTS
 import io
 from PIL import Image
 
-# ==========================================
-# 1. ページ設定とデザイン（呪文封じ込め済み）
-# ==========================================
+# 1. ページ設定とデザイン（エラーに強い新形式）
 st.set_page_config(page_title="基礎S_英語表現T_重要文例Lab", layout="centered")
 
-st.markdown("""
-    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700&family=Roboto+Slab:wght@400;700&display=swap" rel="stylesheet">
-    <style>
-    /* 背景とタイトル */
-    .stApp {
-        background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
-    }
-    .main-title {
-        font-family: 'Noto Sans JP', sans-serif;
-        color: #1B4F72;
-        text-align: center;
-        font-weight: 700;
-        padding-bottom: 20px;
-        border-bottom: 2px solid #1B4F72;
-    }
-    
-    /* カード風のコンテナ設定 */
-    div[data-testid="stVerticalBlock"] > div:has(div.stTabs) {
-        background-color: white !important;
-        padding: 25px !important;
-        border-radius: 15px !important;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.08) !important;
-    }
-    
-    /* ボタンの共通デザイン */
-    div.stButton > button {
-        background-color: #1B4F72 !important;
-        color: white !important;
-        border-radius: 10px !important;
-        height: 3.5em !important;
-        font-weight: bold !important;
-    }
-    
-    /* 英語・日本語テキスト */
-    .english-text {
-        font-family: 'Roboto Slab', serif;
-        font-size: 1.3em;
-        color: #2C3E50;
-    }
-    .japanese-text {
-        font-family: 'Noto Sans JP', sans-serif;
-        font-size: 1.1em;
-    }
-    </style>
-    """, unsafe_allow_html=True)
+# デザイン指示を「文字」ではなく「指示」として強制認識させます
+custom_css = """
+<style>
+    .stApp { background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%); }
+    .main-title { color: #1B4F72; text-align: center; font-weight: 700; padding-bottom: 20px; border-bottom: 2px solid #1B4F72; }
+    div[data-testid="stVerticalBlock"] > div:has(div.stTabs) { background-color: white !important; padding: 25px !important; border-radius: 15px !important; box-shadow: 0 4px 12px rgba(0,0,0,0.08) !important; }
+    div.stButton > button { background-color: #1B4F72 !important; color: white !important; border-radius: 10px !important; height: 3.5em !important; font-weight: bold !important; }
+    .english-text { font-size: 1.3em; color: #2C3E50; font-weight: bold; }
+    .japanese-text { font-size: 1.1em; }
+</style>
+"""
+st.markdown(custom_css, unsafe_allow_html=True)
 
-# ==========================================
 # 2. 変数の初期化
-# ==========================================
 for key in ['finished', 'score', 'current_idx', 'show_feedback', 'current_list']:
     if key not in st.session_state:
         st.session_state[key] = False if key in ['finished', 'show_feedback'] else (0 if key != 'current_list' else None)
 
-# ==========================================
 # 3. AIの初期設定
-# ==========================================
 if 'target_model' not in st.session_state or st.session_state.target_model is None:
     try:
         genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
         available_models = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
         flash_models = [m for m in available_models if 'flash' in m]
         st.session_state.target_model = flash_models[0] if flash_models else available_models[0]
-    except Exception as e:
-        st.error(f"AI設定エラー: {e}")
+    except:
+        st.session_state.target_model = "models/gemini-1.5-flash"
 
-# ==========================================
 # 4. データの読み込み
-# ==========================================
 if 'all_questions' not in st.session_state:
     try:
         df = pd.read_csv('questions.csv')
@@ -88,7 +47,7 @@ if 'all_questions' not in st.session_state:
         st.error(f"CSV読み込みエラー: {e}")
         st.stop()
 
-# --- サイドバー管理 ---
+# --- サイドバー ---
 st.sidebar.title("💎 Study Lab Menu")
 if st.sidebar.button("システムをリセット"):
     st.session_state.clear()
@@ -102,8 +61,7 @@ order_type = st.sidebar.radio("出題順", ["順番通り", "ランダム"])
 if st.sidebar.button("学習を開始する"):
     selected_data = [q for q in st.session_state.all_questions if q['kou'] in selected_kous]
     if selected_data:
-        if order_type == "ランダム":
-            random.shuffle(selected_data)
+        if order_type == "ランダム": random.shuffle(selected_data)
         st.session_state.current_list = selected_data
         st.session_state.current_idx = 0
         st.session_state.score = 0
@@ -111,7 +69,7 @@ if st.sidebar.button("学習を開始する"):
         st.session_state.show_feedback = False
         st.rerun()
 
-# --- メイン画面分岐 ---
+# --- メイン画面 ---
 if st.session_state.current_list is None:
     st.markdown("<h1 class='main-title'>English Expression Lab</h1>", unsafe_allow_html=True)
     st.info("サイドバーから講を選んで開始してください。")
@@ -128,7 +86,6 @@ if st.session_state.finished:
         st.rerun()
     st.stop()
 
-# --- 学習メイン ---
 st.markdown("<h1 class='main-title'>English Expression Lab</h1>", unsafe_allow_html=True)
 progress = (st.session_state.current_idx) / len(st.session_state.current_list)
 st.progress(progress)
@@ -139,14 +96,14 @@ st.markdown(f"<p class='japanese-text'>第{q['no']}問</p>", unsafe_allow_html=T
 st.markdown(f"<h2 style='color:#1B4F72;'>{q['japanese']}</h2>", unsafe_allow_html=True)
 
 tab1, tab2, tab3 = st.tabs(["📷 Photo", "⌨️ Type", "🎤 Voice"])
-with tab1: active_image = st.camera_input("ノート撮影", key=f"cam_{st.session_state.current_idx}")
-with tab2: user_text = st.text_input("回答を入力", key=f"text_{st.session_state.current_idx}")
+with tab1: active_image = st.camera_input("撮影", key=f"cam_{st.session_state.current_idx}")
+with tab2: user_text = st.text_input("回答入力", key=f"text_{st.session_state.current_idx}")
 with tab3: audio_file = st.audio_input("話して提出", key=f"audio_{st.session_state.current_idx}")
 
 col1, col2, col3 = st.columns(3)
 with col1:
     if st.button("採点する"):
-        with st.spinner("AI Teacher checking..."):
+        with st.spinner("AI checking..."):
             try:
                 model = genai.GenerativeModel(st.session_state.target_model)
                 inst = f"英語教師として正解例『{q['english']}』と比較。正解なら『正解です』と含め日本語で解説して。"
@@ -177,7 +134,7 @@ with col3:
 if st.session_state.show_feedback:
     st.markdown("---")
     st.info(st.session_state.feedback_text)
-    st.markdown(f"<p class='english-text'><b>Answer:</b> {q['english']}</p>", unsafe_allow_html=True)
+    st.markdown(f"<p class='english-text'>Answer: {q['english']}</p>", unsafe_allow_html=True)
     tts = gTTS(q['english'], lang='en')
     fp = io.BytesIO()
     tts.write_to_fp(fp)
