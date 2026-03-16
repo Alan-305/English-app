@@ -6,7 +6,7 @@ from gtts import gTTS
 import io
 from PIL import Image
 
-# 1. ページ設定と高度なCSSカスタマイズ
+# 1. ページ設定とデザイン（ここから書き換え）
 st.set_page_config(page_title="基礎S_英語表現T_重要文例Lab", layout="centered")
 
 st.markdown("""
@@ -29,37 +29,37 @@ st.markdown("""
     
     /* カード風のコンテナ */
     .st-emotion-cache-1r6slb0, .stCard {
-        background-color: white;
-        padding: 30px;
-        border-radius: 20px;
-        box-shadow: 0 4px 15px rgba(0,0,0,0.1);
-        margin-bottom: 20px;
+        background-color: white !important;
+        padding: 30px !important;
+        border-radius: 20px !important;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.1) !important;
+        margin-bottom: 20px !important;
     }
     
     /* ボタンのカスタマイズ */
     div.stButton > button {
-        background-color: #1B4F72;
-        color: white;
-        border-radius: 12px;
-        border: none;
-        height: 3.5em;
-        font-weight: bold;
-        transition: all 0.3s ease;
+        background-color: #1B4F72 !important;
+        color: white !important;
+        border-radius: 12px !important;
+        border: none !important;
+        height: 3.5em !important;
+        font-weight: bold !important;
+        transition: all 0.3s ease !important;
     }
     div.stButton > button:hover {
-        background-color: #2E86C1;
-        transform: translateY(-2px);
-        box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+        background-color: #2E86C1 !important;
+        transform: translateY(-2px) !important;
+        box-shadow: 0 5px 15px rgba(0,0,0,0.2) !important;
     }
     
-    /* 英語フォントの指定 */
+    /* 英語フォント */
     .english-text {
         font-family: 'Roboto Slab', serif;
         font-size: 1.4em;
         color: #2C3E50;
     }
     
-    /* 日本語フォントの指定 */
+    /* 日本語フォント */
     .japanese-text {
         font-family: 'Noto Sans JP', sans-serif;
         font-size: 1.1em;
