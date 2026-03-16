@@ -6,21 +6,50 @@ from gtts import gTTS
 import io
 from PIL import Image
 
-# 1. ページ設定とデザイン（エラーに強い新形式）
+# 1. ページ設定とデザイン（テキスト表紙風）
 st.set_page_config(page_title="基礎S_英語表現T_重要文例Lab", layout="centered")
 
-# デザイン指示を「文字」ではなく「指示」として強制認識させます
-custom_css = """
+st.markdown("""
 <style>
-    .stApp { background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%); }
-    .main-title { color: #1B4F72; text-align: center; font-weight: 700; padding-bottom: 20px; border-bottom: 2px solid #1B4F72; }
-    div[data-testid="stVerticalBlock"] > div:has(div.stTabs) { background-color: white !important; padding: 25px !important; border-radius: 15px !important; box-shadow: 0 4px 12px rgba(0,0,0,0.08) !important; }
-    div.stButton > button { background-color: #1B4F72 !important; color: white !important; border-radius: 10px !important; height: 3.5em !important; font-weight: bold !important; }
-    .english-text { font-size: 1.3em; color: #2C3E50; font-weight: bold; }
-    .japanese-text { font-size: 1.1em; }
+    /* 全体の背景：表紙の淡いミントブルー */
+    .stApp { background-color: #E1F5FE; }
+    
+    /* タイトル：重厚なネイビーと下線 */
+    .main-title { 
+        color: #002B5B; 
+        text-align: center; 
+        font-weight: 700; 
+        padding-bottom: 10px; 
+        border-bottom: 3px solid #002B5B;
+        font-family: 'serif';
+    }
+    
+    /* カード部分：白背景に細いネイビーの縁取り */
+    div[data-testid="stVerticalBlock"] > div:has(div.stTabs) { 
+        background-color: white !important; 
+        padding: 30px !important; 
+        border-radius: 5px !important; 
+        border: 1px solid #002B5B !important;
+        box-shadow: 2px 2px 5px rgba(0,0,0,0.05) !important;
+    }
+    
+    /* ボタン：河合塾ネイビー */
+    div.stButton > button { 
+        background-color: #002B5B !important; 
+        color: white !important; 
+        border-radius: 0px !important; 
+        height: 3em !important; 
+        font-weight: bold !important; 
+        border: none !important;
+    }
+    
+    /* スコアや強調：深紅 */
+    .stMetricValue { color: #C0392B !important; }
+    
+    .english-text { font-family: 'serif'; font-size: 1.4em; color: #002B5B; font-weight: bold; }
+    .japanese-text { font-size: 1.1em; color: #333; }
 </style>
-"""
-st.markdown(custom_css, unsafe_allow_html=True)
+""", unsafe_allow_html=True)
 
 # 2. 変数の初期化
 for key in ['finished', 'score', 'current_idx', 'show_feedback', 'current_list']:
@@ -48,7 +77,7 @@ if 'all_questions' not in st.session_state:
         st.stop()
 
 # --- サイドバー ---
-st.sidebar.title("💎 Study Lab Menu")
+st.sidebar.title("📚 英語②T 表現メニュー")
 if st.sidebar.button("システムをリセット"):
     st.session_state.clear()
     st.rerun()
@@ -71,7 +100,7 @@ if st.sidebar.button("学習を開始する"):
 
 # --- メイン画面 ---
 if st.session_state.current_list is None:
-    st.markdown("<h1 class='main-title'>English Expression Lab</h1>", unsafe_allow_html=True)
+    st.markdown("<h1 class='main-title'>基礎S_英語表現T_重要文例Lab</h1>", unsafe_allow_html=True)
     st.info("サイドバーから講を選んで開始してください。")
     st.stop()
 
@@ -80,20 +109,20 @@ if st.session_state.finished:
     total = len(st.session_state.current_list)
     score = st.session_state.score
     st.balloons()
-    st.markdown(f"<div style='background:white;padding:30px;border-radius:15px;text-align:center;'><h2>お疲れ様でした！</h2><p style='font-size:3em;color:#E74C3C;'>{score} / {total}</p></div>", unsafe_allow_html=True)
+    st.markdown(f"<div style='background:white;padding:30px;border:2px solid #002B5B;text-align:center;'><h2>お疲れ様でした！</h2><p style='font-size:3.5em;color:#C0392B;font-weight:bold;'>{score} / {total}</p></div>", unsafe_allow_html=True)
     if st.button("もう一度挑戦"):
         st.session_state.finished = False
         st.rerun()
     st.stop()
 
-st.markdown("<h1 class='main-title'>English Expression Lab</h1>", unsafe_allow_html=True)
+st.markdown("<h1 class='main-title'>基礎S_英語表現T_重要文例Lab</h1>", unsafe_allow_html=True)
 progress = (st.session_state.current_idx) / len(st.session_state.current_list)
 st.progress(progress)
 st.sidebar.metric("現在のスコア", f"{st.session_state.score} 点")
 
 q = st.session_state.current_list[st.session_state.current_idx]
-st.markdown(f"<p class='japanese-text'>第{q['no']}問</p>", unsafe_allow_html=True)
-st.markdown(f"<h2 style='color:#1B4F72;'>{q['japanese']}</h2>", unsafe_allow_html=True)
+st.markdown(f"<p class='japanese-text'>第{q['no']}問（{q['kou']}）</p>", unsafe_allow_html=True)
+st.markdown(f"<h2 style='color:#002B5B;'>{q['japanese']}</h2>", unsafe_allow_html=True)
 
 tab1, tab2, tab3 = st.tabs(["📷 Photo", "⌨️ Type", "🎤 Voice"])
 with tab1: active_image = st.camera_input("撮影", key=f"cam_{st.session_state.current_idx}")
@@ -103,7 +132,7 @@ with tab3: audio_file = st.audio_input("話して提出", key=f"audio_{st.sessio
 col1, col2, col3 = st.columns(3)
 with col1:
     if st.button("採点する"):
-        with st.spinner("AI checking..."):
+        with st.spinner("AI Teacher checking..."):
             try:
                 model = genai.GenerativeModel(st.session_state.target_model)
                 inst = f"英語教師として正解例『{q['english']}』と比較。正解なら『正解です』と含め日本語で解説して。"
