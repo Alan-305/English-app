@@ -6,48 +6,55 @@ from gtts import gTTS
 import io
 from PIL import Image
 
-# 1. ページ設定とデザイン（テキスト表紙風）
+# 1. ページ設定とデザイン（オレンジ・グラデーション・カスタム）
 st.set_page_config(page_title="基礎S_英語表現T_重要文例Lab", layout="centered")
 
 st.markdown("""
 <style>
-    /* 全体の背景：表紙の淡いミントブルー */
-    .stApp { background-color: #E1F5FE; }
+    /* 全体の背景：薄いオレンジのグラデーション */
+    .stApp { 
+        background: linear-gradient(135deg, #ffffff 0%, #fff3e0 100%); 
+    }
     
-    /* タイトル：重厚なネイビーと下線 */
+    /* タイトル：深みのあるオレンジブラウン */
     .main-title { 
-        color: #002B5B; 
+        color: #e67e22; 
         text-align: center; 
         font-weight: 700; 
         padding-bottom: 10px; 
-        border-bottom: 3px solid #002B5B;
+        border-bottom: 3px solid #ffcc80;
         font-family: 'serif';
     }
     
-    /* カード部分：白背景に細いネイビーの縁取り */
+    /* カード部分：白背景に暖色系の縁取り */
     div[data-testid="stVerticalBlock"] > div:has(div.stTabs) { 
         background-color: white !important; 
         padding: 30px !important; 
-        border-radius: 5px !important; 
-        border: 1px solid #002B5B !important;
-        box-shadow: 2px 2px 5px rgba(0,0,0,0.05) !important;
+        border-radius: 15px !important; 
+        border: 1px solid #ffe0b2 !important;
+        box-shadow: 4px 4px 10px rgba(255, 165, 0, 0.05) !important;
     }
     
-    /* ボタン：河合塾ネイビー */
+    /* ボタン：元気の出るオレンジ */
     div.stButton > button { 
-        background-color: #002B5B !important; 
+        background-color: #f39c12 !important; 
         color: white !important; 
-        border-radius: 0px !important; 
-        height: 3em !important; 
+        border-radius: 10px !important; 
+        height: 3.5em !important; 
         font-weight: bold !important; 
         border: none !important;
+        transition: 0.3s;
+    }
+    div.stButton > button:hover {
+        background-color: #e67e22 !important;
+        transform: scale(1.02);
     }
     
-    /* スコアや強調：深紅 */
-    .stMetricValue { color: #C0392B !important; }
+    /* スコアや強調：温かみのある赤オレンジ */
+    .stMetricValue { color: #d35400 !important; }
     
-    .english-text { font-family: 'serif'; font-size: 1.4em; color: #002B5B; font-weight: bold; }
-    .japanese-text { font-size: 1.1em; color: #333; }
+    .english-text { font-family: 'serif'; font-size: 1.4em; color: #784212; font-weight: bold; }
+    .japanese-text { font-size: 1.1em; color: #5d4037; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -77,7 +84,7 @@ if 'all_questions' not in st.session_state:
         st.stop()
 
 # --- サイドバー ---
-st.sidebar.title("📚 英語②T 表現メニュー")
+st.sidebar.title("📚 Study Lab Menu")
 if st.sidebar.button("システムをリセット"):
     st.session_state.clear()
     st.rerun()
@@ -109,7 +116,7 @@ if st.session_state.finished:
     total = len(st.session_state.current_list)
     score = st.session_state.score
     st.balloons()
-    st.markdown(f"<div style='background:white;padding:30px;border:2px solid #002B5B;text-align:center;'><h2>お疲れ様でした！</h2><p style='font-size:3.5em;color:#C0392B;font-weight:bold;'>{score} / {total}</p></div>", unsafe_allow_html=True)
+    st.markdown(f"<div style='background:white;padding:30px;border:2px solid #ffcc80;border-radius:15px;text-align:center;'><h2>お疲れ様でした！</h2><p style='font-size:3.5em;color:#e67e22;font-weight:bold;'>{score} / {total}</p></div>", unsafe_allow_html=True)
     if st.button("もう一度挑戦"):
         st.session_state.finished = False
         st.rerun()
@@ -122,7 +129,7 @@ st.sidebar.metric("現在のスコア", f"{st.session_state.score} 点")
 
 q = st.session_state.current_list[st.session_state.current_idx]
 st.markdown(f"<p class='japanese-text'>第{q['no']}問（{q['kou']}）</p>", unsafe_allow_html=True)
-st.markdown(f"<h2 style='color:#002B5B;'>{q['japanese']}</h2>", unsafe_allow_html=True)
+st.markdown(f"<h2 style='color:#784212;'>{q['japanese']}</h2>", unsafe_allow_html=True)
 
 tab1, tab2, tab3 = st.tabs(["📷 Photo", "⌨️ Type", "🎤 Voice"])
 with tab1: active_image = st.camera_input("撮影", key=f"cam_{st.session_state.current_idx}")
