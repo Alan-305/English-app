@@ -6,6 +6,7 @@ from gtts import gTTS
 import io
 from PIL import Image
 from streamlit_cropper import st_cropper
+import datetime
 
 # 1. ページ設定とデザイン
 st.set_page_config(page_title="基礎シリーズ 英語②T（表現）", layout="centered")
@@ -97,28 +98,43 @@ q = st.session_state.current_list[st.session_state.current_idx]
 st.markdown(f"<p class='japanese-text'>第{q['no']}問（{q['kou']}）</p>", unsafe_allow_html=True)
 st.markdown(f"<h2 style='color:#784212;'>{q['japanese']}</h2>", unsafe_allow_html=True)
 
-# --- 入力タブ ---
-tab1, tab2, tab3 = st.tabs(["📷 Photo", "⌨️ Type", "🎤 Voice"])
+# --- 入力タブ（Supportを追加） ---
+tab1, tab2, tab3, tab4 = st.tabs(["📷 Photo", "⌨️ Type", "🎤 Voice", "💬 Support"])
 
 cropped_image = None
 with tab1:
     img_file = st.file_uploader("写真をアップ", type=['png', 'jpg', 'jpeg'], key=f"up_{st.session_state.current_idx}")
     cam_file = st.camera_input("撮影", key=f"cam_{st.session_state.current_idx}")
     raw_image = cam_file if cam_file else img_file
-    
     if raw_image:
         st.write("📖 **解答部分を枠で囲んでください**")
-        # トリミング機能の呼び出し
         img_obj = Image.open(raw_image)
         cropped_image = st_cropper(img_obj, realtime_update=True, box_color='#f39c12', aspect_ratio=None)
-        if cropped_image:
-            st.image(cropped_image, caption="この範囲を採点します", use_container_width=True)
 
 with tab2:
     user_text = st.text_input("回答入力", key=f"text_{st.session_state.current_idx}")
 
 with tab3:
     audio_file = st.audio_input("話して提出", key=f"audio_{st.session_state.current_idx}")
+
+# --- 開発者へのメッセージ機能 ---
+with tab4:
+    st.subheader("👨‍🏫 開発者（Alan先生）へメッセージ")
+    st.write("質問や感想、バグ報告などがあればこちらからどうぞ！")
+    with st.form(key="support_form", clear_on_submit=True):
+        sender_name = st.text_input("お名前（ニックネーム可）")
+        msg_body = st.text_area("メッセージ内容")
+        submit_msg = st.form_submit_button("メッセージを送信する")
+        
+        if submit_msg:
+            if not msg_body:
+                st.warning("メッセージを入力してください。")
+            else:
+                # メッセージを一時的に表示（本来はここでDBやメールに飛ばす）
+                # 今回はAlanさんが確認しやすいよう、成功メッセージを表示
+                timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
+                st.success(f"ありがとうございます、{sender_name}さん！メッセージを受け付けました。（{timestamp}）")
+                # ヒント：ここにGoogleフォームへの自動連携などを後で組み込めます
 
 # --- 採点アクション ---
 col1, col2, col3 = st.columns(3)
@@ -132,7 +148,6 @@ with col1:
                     model = genai.GenerativeModel(st.session_state.target_model)
                     inst = f"""
                     生徒の回答を正解例『{q['english']}』と比較して添削してください。
-                    
                     【出力の指示】
                     1. 1行目に「あなたの解答：[ここに文字起こしした英文]」
                     2. 次にアドバイスを日本語で。
@@ -140,14 +155,9 @@ with col1:
                     4. 正解の場合は、必ず文中に『正解です』と含める。
                     5. 解説の中の英文は **(太字)** で囲む。
                     """
-                    if audio_file:
-                        res = model.generate_content([inst, {"mime_type": "audio/wav", "data": audio_file.read()}])
-                    elif cropped_image:
-                        # トリミングされた画像を使用
-                        res = model.generate_content([inst, cropped_image])
-                    else:
-                        res = model.generate_content(f"{inst}\n生徒の回答：{user_text}")
-                    
+                    if audio_file: res = model.generate_content([inst, {"mime_type": "audio/wav", "data": audio_file.read()}])
+                    elif cropped_image: res = model.generate_content([inst, cropped_image])
+                    else: res = model.generate_content(f"{inst}\n生徒の回答：{user_text}")
                     st.session_state.feedback_text = res.text
                     st.session_state.show_feedback = True
                     if "正解" in res.text:
@@ -175,12 +185,7 @@ with col3:
 if st.session_state.show_feedback:
     st.markdown("---")
     st.markdown("<p class='explanation-label'>解説</p>", unsafe_allow_html=True)
-    st.markdown(f"""
-    <div class='feedback-container'>
-        <div>{st.session_state.feedback_text}</div>
-        <div class='model-answer-text'><span class='inner-label'>模範解答：</span>{q['english']}</div>
-    </div>
-    """, unsafe_allow_html=True)
+    st.markdown(f"<div class='feedback-container'><div>{st.session_state.feedback_text}</div><div class='model-answer-text'><span class='inner-label'>模範解答：</span>{q['english']}</div></div>", unsafe_allow_html=True)
     tts = gTTS(q['english'], lang='en')
     fp = io.BytesIO()
     tts.write_to_fp(fp)
