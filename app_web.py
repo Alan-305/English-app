@@ -22,9 +22,9 @@ st.markdown("""
     }
     div.stButton > button { 
         background-color: #f39c12 !important; color: white !important; 
-        border-radius: 15px !important; height: 4em !important; 
+        border-radius: 15px !important; height: 3.5em !important; 
         font-size: 1.1em !important; font-weight: bold !important; 
-        border: none !important; width: 100%; margin-bottom: 10px;
+        border: none !important; width: 100%; margin-bottom: 8px;
     }
     div[data-testid="stVerticalBlock"] > div:has(div.stTabs) { 
         background-color: white !important; padding: 15px !important; 
@@ -36,6 +36,7 @@ st.markdown("""
     }
     .feedback-container b { font-family: 'serif'; font-size: 1.3em; color: #784212; background-color: #fff3e0; padding: 0 4px; }
     .model-answer-text { font-family: 'serif'; font-size: 1.35em; font-weight: bold; margin-top: 15px; color: #784212; border-top: 1px dashed #ffcc80; padding-top: 10px; }
+    .hint-label { color: #d35400; font-weight: bold; font-size: 0.9em; margin-bottom: 5px; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -95,7 +96,7 @@ st.markdown("<h1 class='main-title'>基礎シリーズ 英語②T（表現）</h
 q = st.session_state.current_list[st.session_state.current_idx]
 st.markdown(f"<p style='color:#784212; margin-bottom:5px;'>第{q['no']}問 ({st.session_state.current_idx + 1}/{len(st.session_state.current_list)})</p><h3 style='color:#784212; margin-top:0;'>{q['japanese']}</h3>", unsafe_allow_html=True)
 
-# --- タブ（名称を丁寧に修正） ---
+# --- タブ ---
 tab1, tab2, tab3, tab4 = st.tabs(["📷 写真", "⌨️ 打ち込み", "🎤 音声", "💬 報告"])
 
 cropped_image = None
@@ -111,8 +112,8 @@ with tab2: user_text = st.text_input("回答をタイピング", key=f"t_{st.ses
 with tab3: audio_file = st.audio_input("録音して提出", key=f"a_{st.session_state.current_idx}")
 
 with tab4:
-    st.subheader("Alan先生への報告・メッセージ")
-    # ★ここに Alan さんの GAS URL を貼り付けてください
+    st.subheader("松尾先生への報告・メッセージ")
+    # ★ここに GAS URL を貼り付けてください
     WEB_APP_URL = "https://script.google.com/macros/s/XXXXX/exec" 
     with st.form(key="support_form", clear_on_submit=True):
         sender = st.text_input("お名前")
@@ -122,6 +123,20 @@ with tab4:
                 requests.post(WEB_APP_URL, json={"name": sender, "message": msg})
                 st.success("送信が完了しました！")
 
+# --- ヒント機能 ---
+st.markdown("---")
+with st.expander("💡 助けが必要ですか？（ヒント）"):
+    h_col1, h_col2 = st.columns(2)
+    with h_col1:
+        if st.button("文字で見る"):
+            st.info(f"英文のヒント: {q['english'][:5]}...") # 冒頭のみ表示
+    with h_col2:
+        if st.button("音声を聞く"):
+            tts_h = gTTS(q['english'], lang='en')
+            audio_fp_h = io.BytesIO()
+            tts_h.write_to_fp(audio_fp_h)
+            st.audio(audio_fp_h)
+
 # --- アクション ---
 if st.button("🚀 採点する"):
     if not (cropped_image or user_text or audio_file):
@@ -130,7 +145,8 @@ if st.button("🚀 採点する"):
         with st.spinner("AI採点中..."):
             try:
                 model = genai.GenerativeModel(st.session_state.target_model)
-                inst = f"正解例『{q['english']}』と比較。1行目に文字起こし、次に日本語で添削。英文は太字。正解なら『正解です』と含める。正解例の解説は不要。"
+                # 1行目を「あなたの英語：」にするよう指示を強化
+                inst = f"正解例『{q['english']}』と比較。1行目に必ず『あなたの英語：[文字起こし結果]』、次に日本語で添削。英文は太字。正解なら『正解です』と含める。正解例の解説は不要。"
                 if audio_file: res = model.generate_content([inst, {"mime_type": "audio/wav", "data": audio_file.read()}])
                 elif cropped_image: res = model.generate_content([inst, cropped_image])
                 else: res = model.generate_content(f"{inst}\n生徒：{user_text}")
