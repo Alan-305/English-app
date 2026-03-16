@@ -6,17 +6,17 @@ from gtts import gTTS
 import io
 from PIL import Image
 
-# 1. ページ設定とデザイン（正式タイトル & オレンジグラデーション）
+# 1. ページ設定とデザイン（オレンジグラデーション & テキスト拡大対応）
 st.set_page_config(page_title="基礎シリーズ 英語②T（表現）", layout="centered")
 
 st.markdown("""
 <style>
-    /* 全体の背景：薄いオレンジのグラデーション */
+    /* 全体の背景 */
     .stApp { 
         background: linear-gradient(135deg, #ffffff 0%, #fff3e0 100%); 
     }
     
-    /* タイトル：深みのあるオレンジブラウン */
+    /* タイトル */
     .main-title { 
         color: #e67e22; 
         text-align: center; 
@@ -27,7 +27,7 @@ st.markdown("""
         margin-bottom: 30px;
     }
     
-    /* カード部分：白背景に暖色系の縁取り */
+    /* カード部分 */
     div[data-testid="stVerticalBlock"] > div:has(div.stTabs) { 
         background-color: white !important; 
         padding: 30px !important; 
@@ -36,7 +36,7 @@ st.markdown("""
         box-shadow: 4px 4px 10px rgba(255, 165, 0, 0.05) !important;
     }
     
-    /* ボタン：元気の出るオレンジ */
+    /* ボタンデザイン */
     div.stButton > button { 
         background-color: #f39c12 !important; 
         color: white !important; 
@@ -44,25 +44,53 @@ st.markdown("""
         height: 3.5em !important; 
         font-weight: bold !important; 
         border: none !important;
-        transition: 0.3s;
-    }
-    div.stButton > button:hover {
-        background-color: #e67e22 !important;
-        transform: scale(1.02);
     }
     
-    /* スコアや強調：温かみのある赤オレンジ */
-    .stMetricValue { color: #d35400 !important; }
+    /* 解説セクションの見出し */
+    .explanation-label {
+        color: #d35400;
+        font-weight: bold;
+        font-size: 1.2em;
+        margin-top: 20px;
+        margin-bottom: 10px;
+    }
+
+    /* 解説文のボックス */
+    .explanation-box {
+        background-color: #fff9f0;
+        padding: 20px;
+        border-radius: 10px;
+        border-left: 5px solid #f39c12;
+        line-height: 1.6;
+        font-size: 1.1em;
+        color: #5d4037;
+    }
+
+    /* 解説の中の英文（太字部分）を大きく表示 */
+    .explanation-box b, .explanation-box strong {
+        font-family: 'serif';
+        font-size: 1.3em; /* 正解例と同じサイズに調整 */
+        color: #784212;
+        padding: 0 2px;
+    }
     
-    .english-text { font-family: 'serif'; font-size: 1.4em; color: #784212; font-weight: bold; }
+    /* 正解例のテキスト */
+    .english-text { 
+        font-family: 'serif'; 
+        font-size: 1.4em; 
+        color: #784212; 
+        font-weight: bold; 
+        margin-top: 15px;
+    }
+    
     .japanese-text { font-size: 1.1em; color: #5d4037; }
 </style>
 """, unsafe_allow_html=True)
 
 # 2. 変数の初期化
-for key in ['finished', 'score', 'current_idx', 'show_feedback', 'current_list']:
+for key in ['finished', 'score', 'current_idx', 'show_feedback', 'current_list', 'feedback_text']:
     if key not in st.session_state:
-        st.session_state[key] = False if key in ['finished', 'show_feedback'] else (0 if key != 'current_list' else None)
+        st.session_state[key] = False if key in ['finished', 'show_feedback'] else (0 if key not in ['current_list', 'feedback_text'] else None)
 
 # 3. AIの初期設定
 if 'target_model' not in st.session_state or st.session_state.target_model is None:
@@ -117,7 +145,7 @@ if st.session_state.finished:
     total = len(st.session_state.current_list)
     score = st.session_state.score
     st.balloons()
-    st.markdown(f"<div style='background:white;padding:30px;border:2px solid #ffcc80;border-radius:15px;text-align:center;'><h2>お疲れ様でした！</h2><p style='font-size:3.5em;color:#e67e22;font-weight:bold;'>{score} / {total}</p></div>", unsafe_allow_html=True)
+    st.markdown(f"<div style='background:white;padding:30px;border:2px solid #ffcc80;border-radius:15px;text-align:center;'><h2>最終成績</h2><p style='font-size:3.5em;color:#e67e22;font-weight:bold;'>{score} / {total}</p></div>", unsafe_allow_html=True)
     if st.button("もう一度挑戦"):
         st.session_state.finished = False
         st.rerun()
@@ -126,7 +154,6 @@ if st.session_state.finished:
 st.markdown("<h1 class='main-title'>基礎シリーズ 英語②T（表現）</h1>", unsafe_allow_html=True)
 progress = (st.session_state.current_idx) / len(st.session_state.current_list)
 st.progress(progress)
-st.sidebar.metric("現在のスコア", f"{st.session_state.score} 点")
 
 q = st.session_state.current_list[st.session_state.current_idx]
 st.markdown(f"<p class='japanese-text'>第{q['no']}問（{q['kou']}）</p>", unsafe_allow_html=True)
@@ -140,23 +167,37 @@ with tab3: audio_file = st.audio_input("話して提出", key=f"audio_{st.sessio
 col1, col2, col3 = st.columns(3)
 with col1:
     if st.button("採点する"):
-        with st.spinner("AI Teacher checking..."):
-            try:
-                model = genai.GenerativeModel(st.session_state.target_model)
-                inst = f"英語教師として正解例『{q['english']}』と比較。正解なら『正解です』と含め日本語で解説して。"
-                if audio_file: res = model.generate_content([inst, {"mime_type": "audio/wav", "data": audio_file.read()}])
-                elif active_image: res = model.generate_content([inst, Image.open(active_image)])
-                else: res = model.generate_content(f"{inst}\n生徒：{user_text}")
-                st.session_state.feedback_text = res.text
-                st.session_state.show_feedback = True
-                if "正解" in res.text:
-                    st.session_state.score += 1
-                    st.balloons()
-            except Exception as e: st.error(f"Error: {e}")
+        if not (active_image or user_text or audio_file):
+            st.warning("解答を入力してください。")
+        else:
+            with st.spinner("分析中..."):
+                try:
+                    model = genai.GenerativeModel(st.session_state.target_model)
+                    # プロンプトの修正：正解例自体の解説を禁止
+                    inst = f"""
+                    生徒の回答を正解例『{q['english']}』と比較し、添削とアドバイスを日本語で作成してください。
+                    【条件】
+                    - **正解例そのものの意味や文法事項の解説は一切含めないでください。** - 生徒の回答のミス、綴りの間違い、あるいは良い点のみを指摘してください。
+                    - 正解の場合は、文中に必ず『正解です』と入れてください。
+                    - 解説の中で英文を書くときは、その部分を必ず ** (太字) で囲んでください。
+                    - 「英語教師としての解説」などの見出しは不要です。内容のみを書いてください。
+                    """
+                    if audio_file: res = model.generate_content([inst, {"mime_type": "audio/wav", "data": audio_file.read()}])
+                    elif active_image: res = model.generate_content([inst, Image.open(active_image)])
+                    else: res = model.generate_content(f"{inst}\n生徒の回答：{user_text}")
+                    
+                    st.session_state.feedback_text = res.text
+                    st.session_state.show_feedback = True
+                    if "正解" in res.text:
+                        st.session_state.score += 1
+                        st.balloons()
+                except Exception as e: st.error(f"Error: {e}")
+
 with col2:
     if st.button("答えを見る"):
         st.session_state.show_feedback = True
         st.session_state.feedback_text = "正解を確認しましょう。"
+
 with col3:
     label = "Next ➔" if st.session_state.current_idx < len(st.session_state.current_list) - 1 else "Finish"
     if st.button(label):
@@ -168,9 +209,13 @@ with col3:
             st.session_state.finished = True
             st.rerun()
 
+# --- 解説エリア ---
 if st.session_state.show_feedback:
     st.markdown("---")
-    st.info(st.session_state.feedback_text)
+    st.markdown("<p class='explanation-label'>解説</p>", unsafe_allow_html=True)
+    # 解説ボックスの中にAIの回答を表示（英文は自動的に大きく太字になるようCSSで設定済み）
+    st.markdown(f"<div class='explanation-box'>{st.session_state.feedback_text}</div>", unsafe_allow_html=True)
+    
     st.markdown(f"<p class='english-text'>Answer: {q['english']}</p>", unsafe_allow_html=True)
     tts = gTTS(q['english'], lang='en')
     fp = io.BytesIO()
