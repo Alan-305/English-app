@@ -114,7 +114,7 @@ q = st.session_state.current_list[st.session_state.current_idx]
 st.markdown(f"<p style='color:#784212; margin-bottom:5px;'>第{q['no']}問 ({st.session_state.current_idx + 1}/{len(st.session_state.current_list)})</p><h3 style='color:#784212; margin-top:0;'>{q['japanese']}</h3>", unsafe_allow_html=True)
 
 # --- 入力タブ（名称を短縮） ---
-tab1, tab2, tab3, tab4 = st.tabs(["📷", "⌨️", "🎤", "💬 Suppot"])
+tab1, tab2, tab3, tab4 = st.tabs(["📷 カメラ", "⌨️ キーボード", "🎤 マイク", "💬 Suppot"])
 
 with tab1:
     img_file = st.file_uploader("写真", type=['png', 'jpg', 'jpeg'], key=f"u_{st.session_state.current_idx}")
