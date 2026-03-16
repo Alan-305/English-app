@@ -21,6 +21,7 @@ st.markdown("""
         font-family: 'serif'; margin-bottom: 15px;
     }
 
+    /* カメラファインダーを大きく表示 */
     [data-testid="stCameraInput"] { width: 100% !important; }
     
     div.stButton > button { 
@@ -124,7 +125,7 @@ with tab3: audio_file = st.audio_input("録音して提出", key=f"a_{st.session
 
 with tab4:
     st.subheader("松尾先生への報告・メッセージ")
-    WEB_APP_URL = "ここにあなたのGASのURLを貼り付けてください" 
+    WEB_APP_URL = "https://script.google.com/macros/s/XXXXX/exec" 
     with st.form(key="support_form", clear_on_submit=True):
         sender = st.text_input("お名前")
         msg = st.text_area("メッセージ内容")
@@ -138,7 +139,11 @@ st.markdown("---")
 with st.expander("💡 ヒント（文字または音声）"):
     h_col1, h_col2 = st.columns(2)
     with h_col1:
-        if st.button("文字で見る"): st.info(f"冒頭: {q['english'][:5]}...")
+        if st.button("文字で見る"):
+            # 【修正：最初の3単語を表示】
+            words = q['english'].split()
+            hint_text = " ".join(words[:3]) + " ..."
+            st.info(f"冒頭: {hint_text}")
     with h_col2:
         if st.button("音声を聞く"):
             tts_h = gTTS(q['english'], lang='en')
@@ -156,7 +161,7 @@ if st.button("🚀 採点する"):
                 model = genai.GenerativeModel(st.session_state.target_model)
                 inst = f"""
                 正解例『{q['english']}』と比較し、以下の形式で添削してください。
-                - 1行目は『あなたの英語：<b>[文字起こし結果]</b>』としてください。** などの記号は一切使わないこと。
+                - 1行目は『あなたの英語：<b>[文字起こし結果]</b>』としてください。アスタリスクや記号は一切使わないこと。
                 - 2行目以降に日本語で添削。
                 - 解説の中の英文は必ず <b>英文</b> のようにHTMLタグで囲む。
                 - 日本語の引用符「」や『』、Markdownの ** は絶対に使わないこと。
@@ -167,7 +172,7 @@ if st.button("🚀 採点する"):
                 elif cropped_image: res = model.generate_content([inst, cropped_image])
                 else: res = model.generate_content(f"{inst}\n生徒：{user_text}")
                 
-                # 【修正：記号フィルタ】AIがうっかり出力した ** をプログラムで強制消去
+                # 強制フィルタ：** を消去
                 cleaned_text = res.text.replace("**", "")
                 st.session_state.feedback_text, st.session_state.show_feedback = cleaned_text, True
                 if "正解" in cleaned_text: st.session_state.score += 1; st.balloons()
@@ -175,7 +180,6 @@ if st.button("🚀 採点する"):
 
 if st.session_state.show_feedback:
     st.markdown("---")
-    # 解説ボックス（「あなたの英語」も英文部分は自動的に拡大されます）
     st.markdown(f"<div class='feedback-container'><div>{st.session_state.feedback_text}</div><div class='model-answer-text'>模範解答：{q['english']}</div></div>", unsafe_allow_html=True)
     
     tts = gTTS(q['english'], lang='en')
