@@ -9,7 +9,7 @@ from streamlit_cropper import st_cropper
 import datetime
 import requests
 
-# 1. ページ設定とスマホ特化デザイン
+# 1. ページ設定とスマホ特化デザイン（カメラ画面最大化）
 st.set_page_config(page_title="基礎シリーズ 英語②T", layout="centered")
 
 st.markdown("""
@@ -20,6 +20,8 @@ st.markdown("""
         font-size: 1.5em; padding: 10px 0; border-bottom: 3px solid #ffcc80; 
         font-family: 'serif'; margin-bottom: 15px;
     }
+
+    /* カメラ画面を大きく表示 */
     [data-testid="stCameraInput"] { width: 100% !important; }
     [data-testid="stCameraInput"] video { border-radius: 10px !important; width: 100% !important; height: auto !important; aspect-ratio: 4/3 !important; }
     
@@ -29,12 +31,20 @@ st.markdown("""
         font-size: 1.1em !important; font-weight: bold !important; 
         border: none !important; width: 100%; margin-bottom: 8px;
     }
+
     div[data-testid="stVerticalBlock"] > div:has(div.stTabs) { 
         background-color: white !important; padding: 15px !important; 
         border-radius: 15px !important; border: 1px solid #ffe0b2 !important; 
     }
+
     .feedback-container { background-color: #fff9f0; padding: 15px; border-radius: 10px; border-left: 6px solid #f39c12; font-size: 1.1em; color: #5d4037; }
-    .feedback-container b, .feedback-container strong { font-family: 'serif'; font-size: 1.35em; color: #784212; background-color: #fff3e0; padding: 0 4px; font-weight: bold; }
+    
+    /* 解説文・英文表示の統一（記号なしで大きく表示） */
+    .feedback-container b, .feedback-container strong { 
+        font-family: 'serif'; font-size: 1.35em; color: #784212; 
+        background-color: #fff3e0; padding: 0 4px; font-weight: bold;
+    }
+
     .model-answer-text { font-family: 'serif'; font-size: 1.4em; font-weight: bold; margin-top: 15px; color: #784212; border-top: 1px dashed #ffcc80; padding-top: 10px; }
 </style>
 """, unsafe_allow_html=True)
@@ -68,7 +78,7 @@ if st.sidebar.button("最初からリセット"):
     st.rerun()
 
 kous = sorted(list(set([q['kou'] for q in st.session_state.all_questions])))
-selected_kous = st.sidebar.multiselect("講を選択", kous)
+selected_kous = st.sidebar.multiselect("講を選択してください", kous)
 
 if st.sidebar.button("学習スタート"):
     if selected_kous:
@@ -81,7 +91,7 @@ if st.sidebar.button("学習スタート"):
 # --- メイン画面 ---
 if st.session_state.current_list is None:
     st.markdown("<h1 class='main-title'>基礎シリーズ 英語②T（表現）</h1>", unsafe_allow_html=True)
-    st.info("左側のメニューから「講」を選んで「学習スタート」を押してください。")
+    st.info("メニューから「講」を選んで「学習スタート」を押してください。")
     st.stop()
 
 if st.session_state.finished:
@@ -106,7 +116,7 @@ with tab1:
     raw = cam_file if cam_file else img_file
     if raw:
         try: cropped_image = st_cropper(Image.open(raw), realtime_update=True, box_color='#f39c12', aspect_ratio=None)
-        except: st.error("エラーが発生しました。")
+        except: st.empty()
 
 with tab2: user_text = st.text_input("回答をタイピング", key=f"t_{st.session_state.current_idx}")
 with tab3: audio_file = st.audio_input("録音して提出", key=f"a_{st.session_state.current_idx}")
@@ -138,27 +148,27 @@ with st.expander("💡 ヒント（文字または音声）"):
             st.audio(af_h)
 
 # --- 採点アクション ---
+# 録音データがある場合、停止ボタンを押していなくても「採点する」で進めるようロジックを構成
 if st.button("🚀 採点する"):
     if not (cropped_image or user_text or audio_file):
         st.warning("解答を提出してください。")
     else:
-        with st.spinner("採点中..."):
+        with st.spinner("添削中..."):
             try:
                 model = genai.GenerativeModel(st.session_state.target_model)
                 inst = f"""
-                あなたは英語予備校講師です。正解例『{q['english']}』と比較し、以下の通り添削してください。
-                - 1行目は必ず『あなたの英語：<b>[英文]</b>』としてください。記号(**)は一切使わないこと。
-                - 綴り、冠詞、単複を厳密に確認。ただし、正解例と単語が違っても、完全に意味が通じ文法的に正しい場合は正解としてください。
-                - ミスがある場合は『惜しいです！ここを見直しましょう』と前向きに指摘。「不合格」は禁止。
+                あなたは経験豊富な英語予備校講師です。正解例『{q['english']}』と比較し、以下の通り添削してください。
+                - 1行目は必ず『あなたの英語：<b>[文字起こし結果]</b>』としてください。アスタリスク(**)や記号は絶対に使わないこと。
+                - 文法的に正しく、意味が完全に通じる別解であれば、正解例と単語が異なっても正解としてください。
+                - ミスがある場合は『惜しいです！ここを見直しましょう』と前向きに。不合格という言葉は禁止。
                 - 解説の英文は <b>英文</b> とタグで囲み、それ以外の記号（**や「」『』）は絶対に使わないこと。
-                - 模範解答そのものの解説は不要。
                 - 正解または妥当な別解の場合は、必ず文中に『正解です』と含めてください。
                 """
                 if audio_file: res = model.generate_content([inst, {"mime_type": "audio/wav", "data": audio_file.read()}])
                 elif cropped_image: res = model.generate_content([inst, cropped_image])
                 else: res = model.generate_content(f"{inst}\n生徒：{user_text}")
                 
-                # 強制フィルタ [cite: 2026-03-16]
+                # 強制フィルタ：記号や引用符を徹底排除
                 cleaned = res.text.replace("**", "").replace("「", "").replace("」", "").replace("『", "").replace("』", "")
                 st.session_state.feedback_text, st.session_state.show_feedback = cleaned, True
                 if "正解です" in cleaned: st.session_state.score += 1; st.balloons()
