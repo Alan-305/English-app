@@ -10,7 +10,7 @@ import datetime
 import requests
 import re
 
-# 1. ページ設定（ブラウザのタブに表示される名前）
+# 1. ページ設定
 st.set_page_config(page_title="基礎シリーズ 英語②T", layout="centered")
 
 # 2. デザイン設定（CSS）
@@ -22,6 +22,7 @@ st.markdown("""
         font-size: 1.5em; padding: 10px 0; border-bottom: 3px solid #ffcc80; 
         font-family: 'serif'; margin-bottom: 15px;
     }
+    /* カメラ画面を大きく表示 */
     [data-testid="stCameraInput"] { width: 100% !important; }
     [data-testid="stCameraInput"] video { border-radius: 10px !important; width: 100% !important; height: auto !important; aspect-ratio: 4/3 !important; }
     
@@ -36,15 +37,17 @@ st.markdown("""
         border-radius: 15px !important; border: 1px solid #ffe0b2 !important; 
     }
     .feedback-container { background-color: #fff9f0; padding: 15px; border-radius: 10px; border-left: 6px solid #f39c12; font-size: 1.1em; color: #5d4037; }
+    
+    /* 英文表示の統一（記号なしで大きく表示） */
     .feedback-container b, .feedback-container strong { 
         font-family: 'serif'; font-size: 1.35em; color: #784212; 
-        background-color: #fff3e0; padding: 0 4px; font-weight: bold;
+        background-color: #fff3e0; padding: 0 -4px; font-weight: bold;
     }
     .model-answer-text { font-family: 'serif'; font-size: 1.4em; font-weight: bold; margin-top: 15px; color: #784212; border-top: 1px dashed #ffcc80; padding-top: 10px; }
 </style>
 """, unsafe_allow_html=True)
 
-# --- ここでタイトルを常に表示 ---
+# タイトル表示
 st.markdown("<h1 class='main-title'>基礎シリーズ 英語②T（表現）</h1>", unsafe_allow_html=True)
 
 # 3. 変数の初期化
@@ -68,7 +71,7 @@ if 'all_questions' not in st.session_state:
         df.columns = df.columns.str.strip().str.lower()
         st.session_state.all_questions = df.to_dict('records')
     except Exception as e:
-        st.error(f"問題データ(questions.csv)が見つからないか、形式が違います。: {e}")
+        st.error(f"問題データが見つかりません: {e}")
         st.stop()
 
 # --- サイドバー ---
@@ -88,9 +91,9 @@ if st.sidebar.button("学習スタート"):
             st.session_state.finished, st.session_state.show_feedback = False, False
             st.rerun()
     else:
-        st.sidebar.warning("講を1つ以上選んでください。")
+        st.sidebar.warning("講を選択してください。")
 
-# --- メイン画面の分岐 ---
+# --- 画面分岐 ---
 if st.session_state.current_list is None:
     st.info("左側のメニューから「講」を選んで「学習スタート」を押してください。")
     st.stop()
@@ -122,10 +125,10 @@ with tab3: audio_file = st.audio_input("録音して解答", key=f"a_{st.session
 
 with tab4:
     st.subheader("松尾先生への報告")
-    WEB_APP_URL = "ここにあなたのGASのURLを貼り付けてください" 
+    WEB_APP_URL = "https://script.google.com/macros/s/XXXXX/exec" 
     with st.form(key="support_form", clear_on_submit=True):
         sender = st.text_input("お名前")
-        msg = st.text_area("メッセージ")
+        msg = st.text_area("メッセージ内容")
         if st.form_submit_button("送信"):
             if WEB_APP_URL.startswith("http"):
                 requests.post(WEB_APP_URL, json={"name": sender, "message": msg})
@@ -156,14 +159,32 @@ if st.button("🚀 採点する"):
                 あなたは経験豊富な英語講師の助手です。正解例『{q['english']}』と比較してください。
                 - 1行目は： あなたの英語：<b>[聞き取った英文]</b> （※記号**は一切禁止）
                 - 2行目以降： 日本語でアドバイス。
-                - 解説中の英文は <b>英文</b> とタグで囲み、記号 ** や「」『』は絶対に使わない。
+                - 解説中の英文引用は <b>英文</b> とタグで囲み、記号 ** や「」『』は絶対に使わない。
                 - 文法的に正しく意味が通じれば別解も正解とする。
-                - 厳格だが前向きに添削し、「不合格」という言葉は使わないこと。
+                - 厳格だが前向きに添削し、不合格という言葉は絶対に使わないこと。
                 - 正解・妥当な別解なら必ず『正解です』と含める。
                 """
                 if audio_file: res = model.generate_content([inst, {"mime_type": "audio/wav", "data": audio_file.read()}])
                 elif cropped_image: res = model.generate_content([inst, cropped_image])
                 else: res = model.generate_content(f"{inst}\n生徒：{user_text}")
                 
+                # 物理フィルター：記号を徹底排除
                 f_text = res.text.replace("**", "")
-                f_text = re.sub(r'[「」『』]', '', f_
+                f_text = re.sub(r'[「」『』]', '', f_text)
+                
+                st.session_state.feedback_text, st.session_state.show_feedback = f_text, True
+                if "正解です" in f_text: st.session_state.score += 1; st.balloons()
+            except Exception as e: st.error(f"Error: {e}")
+
+if st.session_state.show_feedback:
+    st.markdown("---")
+    st.markdown(f"<div class='feedback-container'><div>{st.session_state.feedback_text}</div><div class='model-answer-text'>模範解答：{q['english']}</div></div>", unsafe_allow_html=True)
+    tts = gTTS(q['english'], lang='en')
+    audio_fp = io.BytesIO()
+    tts.write_to_fp(audio_fp)
+    st.audio(audio_fp)
+    if st.button("次へ進む ➔"):
+        st.session_state.current_idx += 1
+        if st.session_state.current_idx >= len(st.session_state.current_list): st.session_state.finished = True
+        st.session_state.show_feedback = False
+        st.rerun()
