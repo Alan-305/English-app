@@ -18,26 +18,13 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# 2. AIの初期設定（2026年最新モデル gemini-3-flash 対応）
-if 'target_model' not in st.session_state:
+# 2. AIの初期設定（強制的にGemini 3 Flashに設定）
+# エラー回避のため、session_stateの古いモデル設定を一度クリアします
+if 'target_model' not in st.session_state or st.session_state.target_model == 'models/gemini-2.0-flash':
     try:
         genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
-        available_model_names = [m.name for m in genai.list_models()]
-        
-        # 2026年現在の安定・最新候補リスト
-        candidates = [
-            'models/gemini-3-flash',      # 現在の標準
-            'models/gemini-3-flash-lite', # 軽量版
-            'models/gemini-2.0-flash'     # 予備（エラーが出る可能性あり）
-        ]
-        
-        # 使えるモデルを自動選択
-        st.session_state.target_model = 'models/gemini-3-flash' # デフォルト
-        for c in candidates:
-            if c in available_model_names:
-                st.session_state.target_model = c
-                break
-        
+        # 2026年現在の標準モデルを直接指定
+        st.session_state.target_model = 'models/gemini-3-flash'
         st.session_state.ai_configured = True
     except Exception as e:
         st.error(f"AI設定エラー: {e}")
@@ -55,6 +42,11 @@ if 'all_questions' not in st.session_state:
 # --- サイドバー設定 ---
 st.sidebar.title("🛠️ 学習設定")
 st.sidebar.caption(f"使用中AI: {st.session_state.get('target_model', '未設定')}")
+
+# モデルを強制変更するボタン（もしものための保険）
+if st.sidebar.button("AIモデルを最新にリセット"):
+    st.session_state.target_model = 'models/gemini-3-flash'
+    st.rerun()
 
 kous = sorted(list(set([q['kou'] for q in st.session_state.all_questions])))
 selected_kous = st.sidebar.multiselect("学習する講を選択", kous, default=[kous[0]] if kous else [])
@@ -108,7 +100,7 @@ with col1:
     if st.button("採点"):
         try:
             model = genai.GenerativeModel(st.session_state.target_model)
-            prompt = f"英語教師として回答『{user_ans}』を正解例『{q['english']}』と比較し、日本語で丁寧に解説してください。意味が合っていれば大いに褒めてください。"
+            prompt = f"英語教師として、生徒の回答『{user_ans}』を正解例『{q['english']}』と比較し、日本語で丁寧に解説してください。文法的に正しければ大いに褒めてください。"
             res = model.generate_content(prompt)
             st.session_state.feedback_text = res.text
             st.session_state.show_feedback = True
