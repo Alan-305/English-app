@@ -114,7 +114,7 @@ q = st.session_state.current_list[st.session_state.current_idx]
 st.markdown(f"<p style='color:#784212; margin-bottom:5px;'>第{q['no']}問 ({st.session_state.current_idx + 1}/{len(st.session_state.current_list)})</p><h3 style='color:#784212; margin-top:0;'>{q['japanese']}</h3>", unsafe_allow_html=True)
 
 # --- 入力タブ（名称を短縮） ---
-tab1, tab2, tab3, tab4 = st.tabs(["📷 写", "⌨️ 打", "🎤 声", "💬 報"])
+tab1, tab2, tab3, tab4 = st.tabs(["📷", "⌨️", "🎤", "💬 Suppot"])
 
 with tab1:
     img_file = st.file_uploader("写真", type=['png', 'jpg', 'jpeg'], key=f"u_{st.session_state.current_idx}")
@@ -126,12 +126,12 @@ with tab2: user_text = st.text_input("回答を入力", key=f"t_{st.session_stat
 with tab3: audio_file = st.audio_input("録音して提出", key=f"a_{st.session_state.current_idx}")
 
 with tab4:
-    st.subheader("松尾先生へ")
+    st.subheader("開発者(松尾先生)へ")
     WEB_APP_URL = "https://script.google.com/macros/s/AKfycbycMBPTDIHDXzExHx5IJOPGssrYshSiWXObhYrtbhLWKkWfjWgmLemgY5lVdCHRtA29pQ/exec" 
     with st.form(key="support_form", clear_on_submit=True):
         sender = st.text_input("名前")
         msg = st.text_area("内容")
-        if st.form_submit_button("先生に送信"):
+        if st.form_submit_button("送信"):
             if WEB_APP_URL != "ここに...":
                 requests.post(WEB_APP_URL, json={"name": sender, "message": msg})
                 st.success("送信しました！")
