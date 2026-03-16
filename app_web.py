@@ -18,16 +18,39 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# 2. AIの初期設定（強制的にGemini 3 Flashに設定）
-# エラー回避のため、session_stateの古いモデル設定を一度クリアします
-if 'target_model' not in st.session_state or st.session_state.target_model == 'models/gemini-2.0-flash':
+# 2. AIの初期設定（診断＆自動選択機能）
+if 'target_model' not in st.session_state:
     try:
         genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
-        # 2026年現在の標準モデルを直接指定
-        st.session_state.target_model = 'models/gemini-3-flash'
+        
+        # 利用可能な全モデルを取得してリスト化
+        available_models = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
+        st.session_state.all_available = available_models
+        
+        # 優先順位をつけてモデルを探す
+        # 2026年の標準的なモデル名を網羅
+        priority_list = [
+            'models/gemini-3-flash',
+            'models/gemini-3.0-flash',
+            'models/gemini-2.0-flash',
+            'models/gemini-1.5-flash-latest'
+        ]
+        
+        selected = None
+        for model_name in priority_list:
+            if model_name in available_models:
+                selected = model_name
+                break
+        
+        # もしリストにない場合は、'flash'と名のつく最新のものを自動選択
+        if not selected:
+            flash_models = [m for m in available_models if 'flash' in m]
+            selected = flash_models[0] if flash_models else available_models[0]
+            
+        st.session_state.target_model = selected
         st.session_state.ai_configured = True
     except Exception as e:
-        st.error(f"AI設定エラー: {e}")
+        st.error(f"AI設定中にエラーが発生しました: {e}")
 
 # 3. データの読み込み
 if 'all_questions' not in st.session_state:
@@ -39,15 +62,19 @@ if 'all_questions' not in st.session_state:
         st.error(f"CSVエラー: {e}")
         st.stop()
 
-# --- サイドバー設定 ---
-st.sidebar.title("🛠️ 学習設定")
-st.sidebar.caption(f"使用中AI: {st.session_state.get('target_model', '未設定')}")
+# --- サイドバー：診断ツール ---
+st.sidebar.title("🛠️ システム診断")
+st.sidebar.info(f"**現在使用中のAI:**\n`{st.session_state.get('target_model')}`")
 
-# モデルを強制変更するボタン（もしものための保険）
-if st.sidebar.button("AIモデルを最新にリセット"):
-    st.session_state.target_model = 'models/gemini-3-flash'
+with st.sidebar.expander("利用可能なモデル一覧"):
+    for m in st.session_state.get('all_available', []):
+        st.write(f"- `{m}`")
+
+if st.sidebar.button("AIを再起動・モデル更新"):
+    st.session_state.clear()
     st.rerun()
 
+st.sidebar.markdown("---")
 kous = sorted(list(set([q['kou'] for q in st.session_state.all_questions])))
 selected_kous = st.sidebar.multiselect("学習する講を選択", kous, default=[kous[0]] if kous else [])
 order_type = st.sidebar.radio("出題順", ["順番通り", "ランダム"])
@@ -59,7 +86,6 @@ if st.sidebar.button("この設定で開始/リセット"):
     st.session_state.current_list = selected_data
     st.session_state.current_idx = 0
     st.session_state.show_feedback = False
-    st.session_state.feedback_text = ""
     st.session_state.ocr_text = ""
     st.rerun()
 
@@ -76,14 +102,14 @@ st.caption(f"（{q['kou']} - {st.session_state.current_idx + 1} / {len(st.sessio
 
 # --- OCR機能 ---
 with st.expander("📷 写真から解答を入力"):
-    img_file = st.file_uploader("写真をアップ", type=['png', 'jpg', 'jpeg'], key="ocr_up")
-    cam_file = st.camera_input("カメラで撮影", key="ocr_cam")
-    target = cam_file if cam_file else img_file
+    target = st.file_uploader("写真をアップ", type=['png', 'jpg', 'jpeg'], key="ocr_up")
+    cam = st.camera_input("カメラで撮影", key="ocr_cam")
+    input_data = cam if cam else target
     
-    if target and st.button("AIで文字起こしを実行"):
-        with st.spinner("最新AI (Gemini 3) が読み取っています..."):
+    if input_data and st.button("AIで文字起こしを実行"):
+        with st.spinner("AIが画像から英文を読み取っています..."):
             try:
-                img = Image.open(target)
+                img = Image.open(input_data)
                 model = genai.GenerativeModel(st.session_state.target_model)
                 res = model.generate_content(["画像内の英文のみを抽出してください。解説不要。", img])
                 st.session_state.ocr_text = res.text.strip()
@@ -100,7 +126,7 @@ with col1:
     if st.button("採点"):
         try:
             model = genai.GenerativeModel(st.session_state.target_model)
-            prompt = f"英語教師として、生徒の回答『{user_ans}』を正解例『{q['english']}』と比較し、日本語で丁寧に解説してください。文法的に正しければ大いに褒めてください。"
+            prompt = f"英語教師として回答『{user_ans}』を正解例『{q['english']}』と比較し、日本語で丁寧に解説してください。"
             res = model.generate_content(prompt)
             st.session_state.feedback_text = res.text
             st.session_state.show_feedback = True
@@ -126,7 +152,7 @@ with col3:
             st.session_state.ocr_text = ""
             st.rerun()
         else:
-            st.success("全ての選んだ問題が終わりました！お疲れ様でした！")
+            st.success("全問終了！お疲れ様でした！")
 
 if st.session_state.show_feedback:
     st.info(st.session_state.feedback_text)
