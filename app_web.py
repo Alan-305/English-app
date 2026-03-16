@@ -9,36 +9,63 @@ from streamlit_cropper import st_cropper
 import datetime
 import requests
 
-# 1. ページ設定とデザイン（スマホ特化 & 英文拡大）
+# 1. ページ設定とスマホ特化デザイン（カメラ画面最大化）
 st.set_page_config(page_title="基礎シリーズ 英語②T", layout="centered")
 
 st.markdown("""
 <style>
+    /* 全体の背景 */
     .stApp { background: linear-gradient(135deg, #ffffff 0%, #fff3e0 100%); }
+    
+    /* タイトル */
     .main-title { 
         color: #e67e22; text-align: center; font-weight: 700; 
         font-size: 1.5em; padding: 10px 0; border-bottom: 3px solid #ffcc80; 
         font-family: 'serif'; margin-bottom: 15px;
     }
-    [data-testid="stCameraInput"] { width: 100% !important; }
+
+    /* カメラ画面（ファインダー）を限界まで大きく表示 */
+    [data-testid="stCameraInput"] {
+        width: 100% !important;
+        max-width: 100% !important;
+    }
+    [data-testid="stCameraInput"] > div {
+        width: 100% !important;
+    }
+    [data-testid="stCameraInput"] video {
+        border-radius: 10px !important;
+        width: 100% !important;
+        height: auto !important;
+        aspect-ratio: 4 / 3 !important; /* スマホで見やすい比率に固定 */
+    }
+    
+    /* ボタンデザイン */
     div.stButton > button { 
         background-color: #f39c12 !important; color: white !important; 
         border-radius: 15px !important; height: 3.5em !important; 
         font-size: 1.1em !important; font-weight: bold !important; 
         border: none !important; width: 100%; margin-bottom: 8px;
     }
+
+    /* メインコンテンツのカード */
     div[data-testid="stVerticalBlock"] > div:has(div.stTabs) { 
         background-color: white !important; padding: 15px !important; 
         border-radius: 15px !important; border: 1px solid #ffe0b2 !important; 
     }
+
+    /* 解説ボックス */
     .feedback-container { 
         background-color: #fff9f0; padding: 15px; border-radius: 10px; 
         border-left: 6px solid #f39c12; font-size: 1.1em; color: #5d4037; 
     }
+
+    /* 解説の中の英文。AIが出力した <b> タグの中身を大きく表示 */
     .feedback-container b, .feedback-container strong { 
         font-family: 'serif'; font-size: 1.35em; color: #784212; 
         background-color: #fff3e0; padding: 0 4px; font-weight: bold;
     }
+
+    /* 模範解答 */
     .model-answer-text { 
         font-family: 'serif'; font-size: 1.4em; font-weight: bold; 
         margin-top: 15px; color: #784212; border-top: 1px dashed #ffcc80; 
@@ -61,7 +88,7 @@ if 'target_model' not in st.session_state or st.session_state.target_model is No
         st.session_state.target_model = flash_models[0] if flash_models else available_models[0]
     except: st.session_state.target_model = "models/gemini-1.5-flash"
 
-# 4. CSV読み込み
+# 4. データの読み込み
 if 'all_questions' not in st.session_state:
     try:
         df = pd.read_csv('questions.csv')
@@ -76,41 +103,51 @@ if st.sidebar.button("最初からリセット"):
     st.rerun()
 
 kous = sorted(list(set([q['kou'] for q in st.session_state.all_questions])))
-selected_kous = st.sidebar.multiselect("講を選択", kous, default=[kous[0]] if kous else [])
-if st.sidebar.button("学習スタート"):
-    selected_data = [q for q in st.session_state.all_questions if q['kou'] in selected_kous]
-    if selected_data:
-        st.session_state.current_list, st.session_state.current_idx, st.session_state.score = selected_data, 0, 0
-        st.session_state.finished, st.session_state.show_feedback = False, False
-        st.rerun()
+# defaultに何も入れないことで、選択前の「No results」的な表示を防ぐ
+selected_kous = st.sidebar.multiselect("講を選択", kous)
 
-# --- メイン ---
+if st.sidebar.button("学習スタート"):
+    if not selected_kous:
+        st.sidebar.warning("講を選択してください。")
+    else:
+        selected_data = [q for q in st.session_state.all_questions if q['kou'] in selected_kous]
+        if selected_data:
+            st.session_state.current_list, st.session_state.current_idx, st.session_state.score = selected_data, 0, 0
+            st.session_state.finished, st.session_state.show_feedback = False, False
+            st.rerun()
+
+# --- メイン画面（選択前はスッキリさせる） ---
 if st.session_state.current_list is None:
     st.markdown("<h1 class='main-title'>基礎シリーズ 英語②T（表現）</h1>", unsafe_allow_html=True)
-    st.info("サイドバーから「講」を選んでください。")
+    st.info("左側のメニューから「講」を選んで「学習スタート」を押してください。")
     st.stop()
 
 if st.session_state.finished:
     st.markdown("<h1 class='main-title'>Result 🎉</h1>", unsafe_allow_html=True)
-    st.markdown(f"<div style='text-align:center;'><h2>スコア</h2><p style='font-size:3em;color:#e67e22;font-weight:bold;'>{st.session_state.score} / {len(st.session_state.current_list)}</p></div>", unsafe_allow_html=True)
+    st.markdown(f"<div style='text-align:center;'><h2>最終スコア</h2><p style='font-size:3em;color:#e67e22;font-weight:bold;'>{st.session_state.score} / {len(st.session_state.current_list)}</p></div>", unsafe_allow_html=True)
     if st.button("もう一度挑戦"):
-        st.session_state.finished, st.session_state.current_idx = False, 0
+        st.session_state.finished, st.session_state.current_idx, st.session_state.current_list = False, 0, None
         st.rerun()
     st.stop()
 
+# --- 学習メイン ---
 st.markdown("<h1 class='main-title'>基礎シリーズ 英語②T（表現）</h1>", unsafe_allow_html=True)
 q = st.session_state.current_list[st.session_state.current_idx]
 st.markdown(f"<p style='color:#784212; margin-bottom:5px;'>第{q['no']}問 ({st.session_state.current_idx + 1}/{len(st.session_state.current_list)})</p><h3 style='color:#784212; margin-top:0;'>{q['japanese']}</h3>", unsafe_allow_html=True)
 
-# --- タブ ---
+# --- 入力タブ ---
 tab1, tab2, tab3, tab4 = st.tabs(["📷 写真", "⌨️ 打ち込み", "🎤 音声", "💬 報告"])
 
 cropped_image = None
 with tab1:
-    cam_file = st.camera_input("カメラで撮影", key=f"c_{st.session_state.current_idx}")
-    img_file = st.file_uploader("写真を選択", type=['png', 'jpg', 'jpeg'], key=f"u_{st.session_state.current_idx}")
+    cam_file = st.camera_input("カメラ", key=f"c_{st.session_state.current_idx}")
+    img_file = st.file_uploader("画像から選択", type=['png', 'jpg', 'jpeg'], key=f"u_{st.session_state.current_idx}")
     raw = cam_file if cam_file else img_file
-    if raw: cropped_image = st_cropper(Image.open(raw), realtime_update=True, box_color='#f39c12', aspect_ratio=None)
+    if raw:
+        # st_cropperの不必要な表示（No resultsなど）を防ぐためのチェック
+        try:
+            cropped_image = st_cropper(Image.open(raw), realtime_update=True, box_color='#f39c12', aspect_ratio=None)
+        except: st.error("画像の読み込みに失敗しました。")
 
 with tab2: user_text = st.text_input("回答をタイピング", key=f"t_{st.session_state.current_idx}")
 with tab3: audio_file = st.audio_input("録音して提出", key=f"a_{st.session_state.current_idx}")
@@ -120,8 +157,8 @@ with tab4:
     WEB_APP_URL = "ここにあなたのGASのURLを貼り付けてください" 
     with st.form(key="support_form", clear_on_submit=True):
         sender = st.text_input("お名前")
-        msg = st.text_area("メッセージ内容")
-        if st.form_submit_button("先生に送信する"):
+        msg = st.text_area("メッセージ")
+        if st.form_submit_button("送信"):
             if WEB_APP_URL.startswith("http"):
                 requests.post(WEB_APP_URL, json={"name": sender, "message": msg})
                 st.success("送信しました！")
@@ -147,23 +184,24 @@ if st.button("🚀 採点する"):
     if not (cropped_image or user_text or audio_file):
         st.warning("いずれかの方法で解答を提出してください。")
     else:
-        with st.spinner("添削中..."):
+        with st.spinner("厳格に採点中..."):
             try:
                 model = genai.GenerativeModel(st.session_state.target_model)
                 inst = f"""
-                あなたは経験豊富な英語予備校講師です。正解例『{q['english']}』と比較し、以下の通り添削してください。
-                - 1行目は必ず『あなたの英語：<b>[英文]</b>』としてください。アスタリスクや記号は絶対に使わないこと。
+                あなたは経験豊富な英語予備校講師です。正解例『{q['english']}』と比較し、以下の通り厳格に添削してください。
+                - 1行目は必ず『あなたの英語：<b>[英文]</b>』としてください。アスタリスク(**)などの記号は一切使わないこと。
                 - 綴り、冠詞、単複、前置詞など細部を厳密に確認してください。
-                - ミスがある場合は『惜しいです！ここを見直しましょう』というトーンで、具体的に誤りを日本語で指摘してください。
-                - 「不合格」という言葉は絶対に使わないでください。
-                - 解説の中の英文は <b>英文</b> のようにHTMLタグで囲み、それ以外の記号（**や「」『』など）は一切使わないでください。
+                - ミスがある場合は『惜しいです！ここを見直しましょう』という前向きなトーンで。
+                - 不合格という言葉は絶対に使わないでください。
+                - 解説の中の英文は必ず <b>英文</b> のようにHTMLタグで囲み、それ以外の記号（**や「」『』など）は絶対に使わないでください。
+                - 正解例そのものの解説は不要です。
                 - 完璧な解答のみ『正解です』と認めてください。
                 """
                 if audio_file: res = model.generate_content([inst, {"mime_type": "audio/wav", "data": audio_file.read()}])
                 elif cropped_image: res = model.generate_content([inst, cropped_image])
                 else: res = model.generate_content(f"{inst}\n生徒：{user_text}")
                 
-                # 強制フィルタ
+                # 強制フィルタ：記号や引用符を徹底的に排除 [cite: 2026-03-16]
                 cleaned_text = res.text.replace("**", "").replace("「", "").replace("」", "").replace("『", "").replace("』", "")
                 st.session_state.feedback_text, st.session_state.show_feedback = cleaned_text, True
                 if "正解です" in cleaned_text: st.session_state.score += 1; st.balloons()
