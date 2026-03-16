@@ -5,94 +5,22 @@ import random
 from gtts import gTTS
 import io
 from PIL import Image
+from streamlit_cropper import st_cropper
 
 # 1. ページ設定とデザイン
 st.set_page_config(page_title="基礎シリーズ 英語②T（表現）", layout="centered")
 
 st.markdown("""
 <style>
-    /* 全体の背景 */
-    .stApp { 
-        background: linear-gradient(135deg, #ffffff 0%, #fff3e0 100%); 
-    }
-    
-    /* タイトル */
-    .main-title { 
-        color: #e67e22; 
-        text-align: center; 
-        font-weight: 700; 
-        padding-bottom: 10px; 
-        border-bottom: 3px solid #ffcc80;
-        font-family: 'serif';
-        margin-bottom: 30px;
-    }
-    
-    /* カード部分 */
-    div[data-testid="stVerticalBlock"] > div:has(div.stTabs) { 
-        background-color: white !important; 
-        padding: 30px !important; 
-        border-radius: 15px !important; 
-        border: 1px solid #ffe0b2 !important;
-        box-shadow: 4px 4px 10px rgba(255, 165, 0, 0.05) !important;
-    }
-    
-    /* ボタンデザイン */
-    div.stButton > button { 
-        background-color: #f39c12 !important; 
-        color: white !important; 
-        border-radius: 10px !important; 
-        height: 3.5em !important; 
-        font-weight: bold !important; 
-        border: none !important;
-    }
-    
-    /* 「解説」という見出し */
-    .explanation-label {
-        color: #d35400;
-        font-weight: bold;
-        font-size: 1.2em;
-        margin-top: 25px;
-        margin-bottom: 10px;
-    }
-
-    /* 解説表示エリア全体のボックス */
-    .feedback-container {
-        background-color: #fff9f0;
-        padding: 25px;
-        border-radius: 10px;
-        border-left: 6px solid #f39c12;
-        line-height: 1.8;
-        font-size: 1.1em;
-        color: #5d4037;
-    }
-
-    /* ボックス内の「あなたの解答」や「模範解答」という見出し用 */
-    .inner-label {
-        font-weight: bold;
-        color: #a04000;
-    }
-
-    /* 解説の中の英文（太字部分）を大きく表示（正解例と同じサイズ） */
-    .feedback-container b, .feedback-container strong {
-        font-family: 'serif';
-        font-size: 1.25em; /* 正解例の1.4emに近づけつつ読みやすく調整 */
-        color: #784212;
-        background-color: #fff3e0;
-        padding: 0 4px;
-        border-radius: 4px;
-    }
-    
-    /* 最後に表示される模範解答のテキスト */
-    .model-answer-text { 
-        font-family: 'serif'; 
-        font-size: 1.4em; 
-        color: #784212; 
-        font-weight: bold; 
-        margin-top: 20px;
-        padding-top: 15px;
-        border-top: 1px dashed #ffcc80;
-    }
-    
+    .stApp { background: linear-gradient(135deg, #ffffff 0%, #fff3e0 100%); }
+    .main-title { color: #e67e22; text-align: center; font-weight: 700; padding-bottom: 10px; border-bottom: 3px solid #ffcc80; font-family: 'serif'; margin-bottom: 30px; }
+    div[data-testid="stVerticalBlock"] > div:has(div.stTabs) { background-color: white !important; padding: 25px !important; border-radius: 15px !important; border: 1px solid #ffe0b2 !important; box-shadow: 4px 4px 10px rgba(255,165,0,0.05) !important; }
+    div.stButton > button { background-color: #f39c12 !important; color: white !important; border-radius: 10px !important; height: 3.5em !important; font-weight: bold !important; border: none !important; }
+    .explanation-label { color: #d35400; font-weight: bold; font-size: 1.2em; margin-top: 25px; margin-bottom: 10px; }
+    .feedback-container { background-color: #fff9f0; padding: 25px; border-radius: 10px; border-left: 6px solid #f39c12; line-height: 1.8; font-size: 1.1em; color: #5d4037; }
+    .feedback-container b, .feedback-container strong { font-family: 'serif'; font-size: 1.25em; color: #784212; background-color: #fff3e0; padding: 0 4px; border-radius: 4px; }
+    .model-answer-text { font-family: 'serif'; font-size: 1.4em; color: #784212; font-weight: bold; margin-top: 20px; padding-top: 15px; border-top: 1px dashed #ffcc80; }
+    .inner-label { font-weight: bold; color: #a04000; }
     .japanese-text { font-size: 1.1em; color: #5d4037; }
 </style>
 """, unsafe_allow_html=True)
@@ -169,15 +97,34 @@ q = st.session_state.current_list[st.session_state.current_idx]
 st.markdown(f"<p class='japanese-text'>第{q['no']}問（{q['kou']}）</p>", unsafe_allow_html=True)
 st.markdown(f"<h2 style='color:#784212;'>{q['japanese']}</h2>", unsafe_allow_html=True)
 
+# --- 入力タブ ---
 tab1, tab2, tab3 = st.tabs(["📷 Photo", "⌨️ Type", "🎤 Voice"])
-with tab1: active_image = st.camera_input("撮影", key=f"cam_{st.session_state.current_idx}")
-with tab2: user_text = st.text_input("回答入力", key=f"text_{st.session_state.current_idx}")
-with tab3: audio_file = st.audio_input("話して提出", key=f"audio_{st.session_state.current_idx}")
 
+cropped_image = None
+with tab1:
+    img_file = st.file_uploader("写真をアップ", type=['png', 'jpg', 'jpeg'], key=f"up_{st.session_state.current_idx}")
+    cam_file = st.camera_input("撮影", key=f"cam_{st.session_state.current_idx}")
+    raw_image = cam_file if cam_file else img_file
+    
+    if raw_image:
+        st.write("📖 **解答部分を枠で囲んでください**")
+        # トリミング機能の呼び出し
+        img_obj = Image.open(raw_image)
+        cropped_image = st_cropper(img_obj, realtime_update=True, box_color='#f39c12', aspect_ratio=None)
+        if cropped_image:
+            st.image(cropped_image, caption="この範囲を採点します", use_container_width=True)
+
+with tab2:
+    user_text = st.text_input("回答入力", key=f"text_{st.session_state.current_idx}")
+
+with tab3:
+    audio_file = st.audio_input("話して提出", key=f"audio_{st.session_state.current_idx}")
+
+# --- 採点アクション ---
 col1, col2, col3 = st.columns(3)
 with col1:
     if st.button("採点する"):
-        if not (active_image or user_text or audio_file):
+        if not (cropped_image or user_text or audio_file):
             st.warning("解答を提出してください。")
         else:
             with st.spinner("添削中..."):
@@ -187,15 +134,19 @@ with col1:
                     生徒の回答を正解例『{q['english']}』と比較して添削してください。
                     
                     【出力の指示】
-                    1. まず1行目に「あなたの解答：[ここに文字起こしした英文]」と書いてください。
-                    2. 次に改行して、生徒の回答へのアドバイスを日本語で書いてください。
-                    3. 正解例そのものの意味や文法の解説は不要です。生徒のミスの指摘や良い点の評価に集中してください。
-                    4. 正解の場合は、必ず文中に『正解です』という言葉を含めてください。
-                    5. 解説の中で英文を引用するときは、必ず **(太字)** で囲んでください。
+                    1. 1行目に「あなたの解答：[ここに文字起こしした英文]」
+                    2. 次にアドバイスを日本語で。
+                    3. 正解例そのものの解説は不要。ミスの指摘や良い点の評価に集中。
+                    4. 正解の場合は、必ず文中に『正解です』と含める。
+                    5. 解説の中の英文は **(太字)** で囲む。
                     """
-                    if audio_file: res = model.generate_content([inst, {"mime_type": "audio/wav", "data": audio_file.read()}])
-                    elif active_image: res = model.generate_content([inst, Image.open(active_image)])
-                    else: res = model.generate_content(f"{inst}\n生徒の回答：{user_text}")
+                    if audio_file:
+                        res = model.generate_content([inst, {"mime_type": "audio/wav", "data": audio_file.read()}])
+                    elif cropped_image:
+                        # トリミングされた画像を使用
+                        res = model.generate_content([inst, cropped_image])
+                    else:
+                        res = model.generate_content(f"{inst}\n生徒の回答：{user_text}")
                     
                     st.session_state.feedback_text = res.text
                     st.session_state.show_feedback = True
@@ -207,7 +158,6 @@ with col1:
 with col2:
     if st.button("答えを見る"):
         st.session_state.show_feedback = True
-        # 答えを見るボタンの時は、文字起こしがないのでシンプルに表示
         st.session_state.feedback_text = "模範解答を確認して練習しましょう。"
 
 with col3:
@@ -221,21 +171,16 @@ with col3:
             st.session_state.finished = True
             st.rerun()
 
-# --- 解説エリア ---
+# --- フィードバックエリア ---
 if st.session_state.show_feedback:
     st.markdown("---")
     st.markdown("<p class='explanation-label'>解説</p>", unsafe_allow_html=True)
-    
-    # 1つのボックスの中に「あなたの解答」「解説」「模範解答」をすべてまとめる
-    with st.container():
-        st.markdown(f"""
-        <div class='feedback-container'>
-            <div>{st.session_state.feedback_text}</div>
-            <div class='model-answer-text'><span class='inner-label'>模範解答：</span>{q['english']}</div>
-        </div>
-        """, unsafe_allow_html=True)
-    
-    # 音声再生
+    st.markdown(f"""
+    <div class='feedback-container'>
+        <div>{st.session_state.feedback_text}</div>
+        <div class='model-answer-text'><span class='inner-label'>模範解答：</span>{q['english']}</div>
+    </div>
+    """, unsafe_allow_html=True)
     tts = gTTS(q['english'], lang='en')
     fp = io.BytesIO()
     tts.write_to_fp(fp)
