@@ -96,13 +96,14 @@ col1, col2 = st.columns(2)
 with col1:
     if st.button("🚀 採点する"):
         if user_text:
-            with st.spinner("AIが添削中..."):
+            with st.spinner("Pro版AIが添削中..."):
                 try:
                     genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
                     # Pro版を確実に呼び出す設定です
                     model = genai.GenerativeModel('gemini-1.5-pro')
-                    inst = f"日本文:{q['japanese']}\n正解例:{q['english']}\n生徒解答:{user_text}\n文法的に正しければ別解も正解(Perfect)として、不合格という言葉、記号**、カギカッコを使わずに前向きに添削して。"
-                    res = model.generate_content(inst)
+                    prompt = f"日本文:{q['japanese']}\n正解例:{q['english']}\n生徒解答:{user_text}\nルール:文法的に正しければ別解も正解(Perfect)として、不合格という言葉、記号**、カギカッコを使わずに前向きに添削して。"
+                    res = model.generate_content(prompt)
+                    # 記号の強制クリーニング
                     f_text = re.sub(r'[\*「」『』]', '', res.text)
                     st.session_state.feedback_text, st.session_state.show_feedback = f_text, True
                     if "正解" in f_text or "Perfect" in f_text:
