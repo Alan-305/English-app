@@ -1,16 +1,21 @@
+import os
+os.environ["PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION"] = "python"
+
 import streamlit as st
-import pandas as pd
 import google.generativeai as genai
+import pandas as pd
+import random
 from gtts import gTTS
 import io
-import random
 from PIL import Image
 from streamlit_cropper import st_cropper
+import requests
 import re
 
-# --- 1. ページ設定 ---
+# 1. ページ設定
 st.set_page_config(page_title="基礎シリーズ_英語②_T_重要文例", layout="centered")
 
+# CSS: 英文のサイズを模範解答(1.4em)に合わせる
 st.markdown("""
 <style>
     .stApp { background: linear-gradient(135deg, #ffffff 0%, #fff3e0 100%); }
@@ -25,9 +30,9 @@ st.markdown("""
         font-size: 1.1em !important; font-weight: bold !important; 
         width: 100%;
     }
-    .feedback-container { background-color: #fff9f0; padding: 20px; border-radius: 15px; border-left: 8px solid #f39c12; margin-top: 15px; }
+    .feedback-container { background-color: #fff9f0; padding: 20px; border-radius: 15px; border-left: 8px solid #f39c12; margin-top: 15px; white-space: pre-wrap; }
     
-    /* 英文表示のサイズ統一：解説中の太字(b)と模範解答を1.4emに */
+    /* 解説中の英文(bタグ)を模範解答と同じ1.4emにする */
     .feedback-container b, .feedback-container strong { 
         font-family: 'serif'; font-size: 1.4em; color: #784212; 
         background-color: #fff3e0; padding: 0 4px; font-weight: bold;
@@ -38,12 +43,12 @@ st.markdown("""
 
 st.markdown("<h1 class='main-title'>基礎シリーズ_英語②_T_重要文例</h1>", unsafe_allow_html=True)
 
-# --- 2. 変数の初期化 ---
+# 2. 変数の初期化
 for key in ['finished', 'score', 'current_idx', 'show_feedback', 'current_list', 'feedback_text']:
     if key not in st.session_state:
         st.session_state[key] = False if 'finished' in key or 'show' in key else (0 if 'idx' in key or 'score' in key else None)
 
-# --- 3. データの読み込み ---
+# 3. データの読み込み
 if 'all_questions' not in st.session_state:
     try:
         df = pd.read_csv('questions.csv')
@@ -53,7 +58,7 @@ if 'all_questions' not in st.session_state:
         st.error("questions.csvが読み込めません。")
         st.stop()
 
-# --- 4. サイドバー ---
+# 4. サイドバー
 st.sidebar.title("📚 Menu")
 if st.sidebar.button("最初からリセット"):
     st.session_state.clear()
@@ -72,14 +77,14 @@ if st.sidebar.button("学習スタート"):
         st.session_state.finished, st.session_state.show_feedback = False, False
         st.rerun()
 
-# --- 5. メイン画面制御 ---
+# 5. メイン画面制御
 if st.session_state.current_list is None:
     st.info("👈 左のメニューから講を選んでスタートしてください。")
     st.stop()
 
 if st.session_state.finished:
     st.balloons()
-    st.success(f"全問終了！ 今回のスコア: {st.session_state.score} / {len(st.session_state.current_list)}")
+    st.success(f"全問終了！ スコア: {st.session_state.score} / {len(st.session_state.current_list)}")
     if st.button("最初に戻る"):
         st.session_state.clear()
         st.rerun()
@@ -91,7 +96,6 @@ ans_text = q.get('english', q.get('answer', ''))
 st.write(f"### 第{st.session_state.current_idx + 1}問 / {len(st.session_state.current_list)}")
 st.write(f"## {q.get('japanese', '')}")
 
-# --- 6. ヒント機能 ---
 with st.expander("💡 ヒント（文字または音声）"):
     h_col1, h_col2 = st.columns(2)
     with h_col1:
@@ -105,7 +109,7 @@ with st.expander("💡 ヒント（文字または音声）"):
             tts_h.write_to_fp(af_h)
             st.audio(af_h, autoplay=True)
 
-# --- 7. タブ機能 ---
+# 6. タブ機能
 tab1, tab2, tab3, tab4 = st.tabs(["📷 写真", "⌨️ 打ち込み", "🎤 音声", "💬 報告"])
 
 img_for_ai = None
@@ -121,51 +125,57 @@ with tab3:
     audio_data = st.audio_input("声に出して解答", key=f"a_{st.session_state.current_idx}")
 
 with tab4:
-    st.subheader("松尾先生への報告")
+    st.subheader("先生への報告")
     with st.form(key="report"):
         st.text_input("お名前")
         st.text_area("メッセージ")
         if st.form_submit_button("送信"): st.success("報告を受け付けました！")
 
-# --- 8. 採点ロジック ---
+# 7. 採点ロジック
 st.markdown("---")
 if st.button("🚀 採点する"):
     if not (typed_ans or audio_data or img_for_ai):
         st.warning("⚠️ 解答を入力してください。")
     else:
-        # 指示2：添削中の表示を出す
         with st.spinner("添削中..."):
             try:
                 genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
-                available_models = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
-                target_model = next((m for m in available_models if 'flash' in m), available_models[0])
-                model = genai.GenerativeModel(target_model)
+                model = genai.GenerativeModel('gemini-1.5-flash')
                 
-                prompt = f"""英語講師として添削して。
+                # 指示の改善：構成とタグ、不要な文字の禁止を徹底
+                prompt = f"""経験豊富な英語講師として、生徒の解答を添削してください。
                 日本文：『{q.get('japanese','')}』
                 模範解答：『{ans_text}』
                 
-                【ルール】
-                - 解説中の英文引用は <b>英文</b> とタグで囲むこと。
-                - 文法的に正しければ別解も正解(Perfect!)とする。
-                - 不合格という言葉、記号 **、英文への「」は禁止。
-                - 前向きに励ますこと。正解なら必ず「正解です」を含めること。"""
+                【出力構成】
+                1行目：評価の言葉（例：正解です！、惜しい！など）
+                2行目：あなたの解答：[ここに生徒の解答を表示]
+                3行目以降：解説
 
-                if img_for_ai:
-                    response = model.generate_content([prompt, img_for_ai])
-                elif audio_data:
-                    response = model.generate_content([prompt, {"mime_type": "audio/wav", "data": audio_data.read()}])
-                else:
-                    response = model.generate_content(f"{prompt}\n生徒解答：{typed_ans}")
+                【ルール】
+                - 解説の中の英文引用は必ず <b> </b> タグで囲むこと。
+                - 「英文」という文字自体は絶対に出力に含めない。
+                - 英文に「」や『』はつけない。
+                - 文法的に正しければ別解も正解(Perfect!)とする。
+                - 「不合格」という言葉、記号 ** は絶対に使用禁止。
+                - 前向きに励ますこと。正解なら「正解です」を含める。"""
+
+                input_data = [prompt]
+                if img_for_ai: input_data.append(img_for_ai)
+                elif audio_data: input_data.append({"mime_type": "audio/wav", "data": audio_data.read()})
+                else: input_data.append(f"生徒の解答：{typed_ans}")
+
+                response = model.generate_content(input_data)
                 
-                clean_text = re.sub(r'[\*「」『』]', '', response.text)
+                # 念のための物理フィルター
+                clean_text = response.text.replace("**", "").replace("「英文」", "").replace("英文：", "")
                 st.session_state.feedback_text, st.session_state.show_feedback = clean_text, True
                 
                 if any(word in clean_text for word in ["正解", "Perfect", "お見事", "素晴らしい"]):
                     st.session_state.score += 1
                     st.balloons()
             except Exception as e:
-                st.error(f"接続エラー: {e}")
+                st.error(f"エラー: {e}")
 
 if st.session_state.show_feedback:
     st.markdown(f"<div class='feedback-container'>{st.session_state.feedback_text}<div class='model-answer-text'>模範解答：{ans_text}</div></div>", unsafe_allow_html=True)
