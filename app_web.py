@@ -31,7 +31,7 @@ st.markdown("""
 
 st.markdown("<h1 class='main-title'>基礎シリーズ_英語②_T_重要文例</h1>", unsafe_allow_html=True)
 
-# --- 2. 変数の初期化 ---
+# --- 2. セッション変数の初期化 ---
 for key in ['finished', 'score', 'current_idx', 'show_feedback', 'current_list', 'feedback_text']:
     if key not in st.session_state:
         st.session_state[key] = False if 'finished' in key or 'show' in key else (0 if 'idx' in key or 'score' in key else None)
@@ -43,7 +43,7 @@ if 'all_questions' not in st.session_state:
         df.columns = df.columns.str.strip().str.lower()
         st.session_state.all_questions = df.to_dict('records')
     except:
-        st.error("questions.csvが読み込めません。")
+        st.error("questions.csvが読み込めません。GitHub上のファイル名と列名（kou, no, japanese, english）を確認してください。")
         st.stop()
 
 # --- 4. サイドバー（ランダム機能の復活） ---
@@ -54,7 +54,6 @@ if st.sidebar.button("最初からリセット"):
 
 all_kous = sorted(list(set([str(q.get('kou', q.get('lecture', '1'))) for q in st.session_state.all_questions])))
 selected_kous = st.sidebar.multiselect("講を選択してください", all_kous)
-# 【復活】ランダム・順番通りの選択
 order_type = st.sidebar.radio("出題順を選択", ["順番通り", "ランダム"])
 
 if st.sidebar.button("学習スタート"):
@@ -69,7 +68,7 @@ if st.sidebar.button("学習スタート"):
 
 # --- 5. メイン画面制御 ---
 if st.session_state.current_list is None:
-    st.info("👈 左のメニューから「講」を選んでスタートしてください。")
+    st.info("👈 左のメニューから「講」を選んで「学習スタート」を押してください。")
     st.stop()
 
 if st.session_state.finished:
@@ -87,13 +86,14 @@ ans_text = q.get('english', q.get('answer', ''))
 st.write(f"### 第{st.session_state.current_idx+1}問 / {len(st.session_state.current_list)}")
 st.write(f"## {q.get('japanese', '')}")
 
-# --- 6. タブ（「報告」を含む4つのタブを完備） ---
+# --- 6. タブ機能（報告も含む4タブ） ---
 tab1, tab2, tab3, tab4 = st.tabs(["📷 写真", "⌨️ 打ち込み", "🎤 音声", "💬 報告"])
 
 img_for_ai = None
 with tab1:
     raw_img = st.camera_input("撮影", key=f"c_{st.session_state.current_idx}")
-    if raw_img: img_for_ai = st_cropper(Image.open(raw_img), realtime_update=True, box_color='#f39c12')
+    if raw_img:
+        img_for_ai = st_cropper(Image.open(raw_img), realtime_update=True, box_color='#f39c12')
 
 with tab2:
     typed_ans = st.text_input("回答を入力", key=f"t_{st.session_state.current_idx}")
@@ -106,42 +106,52 @@ with tab4:
     with st.form(key="report"):
         st.text_input("お名前")
         st.text_area("メッセージ")
-        if st.form_submit_button("送信"): st.success("報告を受け付けました！")
+        if st.form_submit_button("送信"):
+            st.success("報告を受け付けました！")
 
-# --- 7. 採点ロジック（401/404対策版） ---
+# --- 7. 採点ロジック ---
 st.markdown("---")
 c1, c2 = st.columns(2)
 
 with c1:
     if st.button("🚀 採点する"):
         if not (typed_ans or audio_data or img_for_ai):
-            st.warning("⚠️ 解答を入力してください。")
+            st.warning("⚠️ 写真、打ち込み、音声のいずれかで解答してください。")
         else:
-            with st.spinner("AIが確認中..."):
+            with st.spinner("AIが添削中..."):
                 try:
-                    # 401エラー対策：APIキーの再読み込み
+                    # 401対策: キーの読み込み
                     api_key = st.secrets["GEMINI_API_KEY"]
                     genai.configure(api_key=api_key)
                     
-                    # 404エラー対策：名前をシンプルに
-                    model = genai.GenerativeModel('gemini-1.5-flash')
+                    # 404対策: 名前をシンプルにして試行
+                    try:
+                        model = genai.GenerativeModel('gemini-1.5-flash')
+                    except:
+                        model = genai.GenerativeModel('gemini-1.5-pro')
                     
-                    prompt = f"英語教師として添削して。日本文『{q.get('japanese','')}』、模範解答『{ans_text}』。別解も正解(Perfect!)として。不合格という言葉、記号**、カギカッコは禁止。前向きに。正解なら『正解です』と含めて。"
+                    prompt = f"英語講師として添削して。日本文『{q.get('japanese','')}』、模範解答『{ans_text}』。文法的に正しければ別解も正解(Perfect!)として。不合格という言葉、記号、カギカッコは禁止。前向きに。正解なら『正解です』と含めて。"
 
-                    if img_for_ai: response = model.generate_content([prompt, img_for_ai])
-                    elif audio_data: response = model.generate_content([prompt, {"mime_type": "audio/wav", "data": audio_data.read()}])
-                    else: response = model.generate_content(f"{prompt}\n生徒解答：{typed_ans}")
+                    if img_for_ai:
+                        response = model.generate_content([prompt, img_for_ai])
+                    elif audio_data:
+                        response = model.generate_content([prompt, {"mime_type": "audio/wav", "data": audio_data.read()}])
+                    else:
+                        response = model.generate_content(f"{prompt}\n生徒解答：{typed_ans}")
                     
+                    # 記号の強制排除
                     clean_text = re.sub(r'[\*「」『』]', '', response.text)
                     st.session_state.feedback_text, st.session_state.show_feedback = clean_text, True
-                    if "正解です" in clean_text: st.session_state.score += 1
+                    if "正解です" in clean_text:
+                        st.session_state.score += 1
                 except Exception as e:
-                    st.error(f"認証または接続エラー (401/404): {e}")
+                    st.error(f"接続エラー (401/404): {e}")
 
 with c2:
     if st.button("次へ進む ➔"):
         st.session_state.current_idx += 1
-        if st.session_state.current_idx >= len(st.session_state.current_list): st.session_state.finished = True
+        if st.session_state.current_idx >= len(st.session_state.current_list):
+            st.session_state.finished = True
         st.session_state.show_feedback = False
         st.rerun()
 
