@@ -138,6 +138,7 @@ with col_header_2:
     if st.button("最初からやり直す", key="reset_btn"):
         st.session_state.current_list = None; st.rerun()
 
+# 修正箇所: 88行目付近の f-string の開始クォーテーションを追加
 st.markdown(f"<div class='q-text'>{q.get('japanese', '')}</div>", unsafe_allow_html=True)
 
 # 5. ヒント
