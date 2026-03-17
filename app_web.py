@@ -14,7 +14,7 @@ import re
 # 1. ページ設定
 st.set_page_config(page_title="基礎シリーズ_英語②_T_重要文例", layout="centered")
 
-# CSS: 先生こだわりのデザイン（Century/明朝/行間圧縮/タイトル1.2em）
+# CSS: フォント（明朝/Century）・サイズ・行間の詰めをすべて適用
 st.markdown("""
 <style>
     html, body, [class*="css"] {
@@ -24,13 +24,12 @@ st.markdown("""
     .main-title { 
         color: #e67e22; text-align: center; font-weight: 700; 
         font-size: 1.2em; padding: 8px 0; border-bottom: 3px solid #ffcc80; 
-        margin-bottom: 12px;
+        font-family: 'serif'; margin-bottom: 12px;
     }
     .q-label, .q-text { font-size: 1.2em; color: #784212; font-weight: bold; }
     .q-label { margin-bottom: 2px; }
     .q-text { margin-top: 0px; margin-bottom: 15px; }
 
-    /* 解説エリア：行間を詰め、文字サイズを1.05emに統一 */
     .feedback-container { 
         background-color: #fff9f0; padding: 12px 18px; border-radius: 15px; 
         border-left: 8px solid #f39c12; margin-top: 10px; white-space: pre-line;
@@ -56,10 +55,13 @@ st.markdown("""
 
 st.markdown("<h1 class='main-title'>基礎シリーズ_英語②_T_重要文例</h1>", unsafe_allow_html=True)
 
-# 2. 変数の初期化
-for key in ['finished', 'score', 'current_idx', 'show_feedback', 'current_list', 'feedback_text']:
+# 2. セッション変数の初期化
+for key in ['finished', 'score', 'current_idx', 'show_feedback', 'current_list', 'feedback_text', 'play_hint']:
     if key not in st.session_state:
-        st.session_state[key] = False if 'finished' in key or 'show' in key else (0 if 'idx' in key or 'score' in key else None)
+        if 'finished' in key or 'show' in key or 'play' in key:
+            st.session_state[key] = False
+        else:
+            st.session_state[key] = 0 if 'idx' in key or 'score' in key else None
 
 # 3. データの読み込み
 if 'all_questions' not in st.session_state:
@@ -86,7 +88,7 @@ if st.sidebar.button("学習スタート"):
         data = [q for q in st.session_state.all_questions if str(q.get('kou', q.get('lecture', '1'))) in selected_kous]
         if order_type == "ランダム": random.shuffle(data)
         st.session_state.current_list, st.session_state.current_idx, st.session_state.score = data, 0, 0
-        st.session_state.finished, st.session_state.show_feedback = False, False
+        st.session_state.finished, st.session_state.show_feedback, st.session_state.play_hint = False, False, False
         st.rerun()
 
 if st.session_state.current_list is None:
@@ -107,16 +109,20 @@ ans_text = q.get('english', q.get('answer', ''))
 st.markdown(f"<div class='q-label'>第{st.session_state.current_idx + 1}問 / {len(st.session_state.current_list)}</div>", unsafe_allow_html=True)
 st.markdown(f"<div class='q-text'>{q.get('japanese', '')}</div>", unsafe_allow_html=True)
 
-# 6. ヒント（音声即再生）
+# --- 6. ヒント機能（音声競合を完全に防ぐ） ---
 with st.expander("💡 ヒント"):
     h_col1, h_col2 = st.columns(2)
     with h_col1:
         if st.button("文字で見る"): st.info(f"冒頭: {' '.join(ans_text.split()[:3])} ...")
     with h_col2:
         if st.button("音声を聞く"):
-            tts_h = gTTS(ans_text, lang='en')
-            af_h = io.BytesIO(); tts_h.write_to_fp(af_h)
-            st.audio(af_h, autoplay=True)
+            st.session_state.play_hint = True # フラグを立てる
+
+if st.session_state.play_hint:
+    tts_h = gTTS(ans_text, lang='en')
+    af_h = io.BytesIO(); tts_h.write_to_fp(af_h)
+    st.audio(af_h, autoplay=True)
+    st.session_state.play_hint = False # 一度鳴らしたらフラグを下ろす（録音ボタン押下時の再発防止）
 
 # 7. タブ
 tab1, tab2, tab3, tab4 = st.tabs(["📷 写真", "⌨️ 打ち込み", "🎤 音声", "💬 報告"])
@@ -141,9 +147,7 @@ with c1:
             with st.spinner("添削中..."):
                 try:
                     genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
-                    
-                    # 【404根絶：動的モデル選択】
-                    # models/ なしでもありでも、利用可能な flash モデルを自動で見つける
+                    # 404エラー根絶：サーバーに今使える名前を聞く方式
                     available = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
                     model_name = next((m for m in available if 'flash' in m), 'gemini-1.5-flash')
                     model = genai.GenerativeModel(model_name)
@@ -161,7 +165,7 @@ with c1:
                     res = model.generate_content(inp)
                     f_text = re.sub(r'[\*「」『』]', '', res.text).replace("英文：", "").replace("英文", "")
                     st.session_state.feedback_text, st.session_state.show_feedback = f_text, True
-                    if any(w in f_text for w in ["正解", "Perfect", "お見事"]):
+                    if any(w in f_text for word in ["正解", "Perfect", "お見事"]):
                         st.session_state.score += 1; st.balloons()
                 except Exception as e: st.error(f"接続エラー: {e}")
 
