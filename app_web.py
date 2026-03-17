@@ -14,28 +14,22 @@ import re
 # 1. ページ設定
 st.set_page_config(page_title="基礎シリーズ_英語②_T_重要文例", layout="centered")
 
-# CSS: 先生こだわりのデザインを完璧に再現
+# CSS: フォントとレイアウトの微調整
 st.markdown("""
 <style>
-    /* 日本語：明朝体、英語：Century */
     html, body, [class*="css"] {
         font-family: "MS PMincho", "Hiragino Mincho ProN", serif;
     }
     .stApp { background: linear-gradient(135deg, #ffffff 0%, #fff3e0 100%); }
-    
-    /* タイトル：1.2em（控えめ） */
     .main-title { 
         color: #e67e22; text-align: center; font-weight: 700; 
         font-size: 1.2em; padding: 8px 0; border-bottom: 3px solid #ffcc80; 
         font-family: 'serif'; margin-bottom: 12px;
     }
-    
-    /* 問題文とラベル：1.2em（統一） */
     .q-label, .q-text { font-size: 1.2em; color: #784212; font-weight: bold; }
     .q-label { margin-bottom: 2px; }
     .q-text { margin-top: 0px; margin-bottom: 15px; }
 
-    /* 解説エリア：1.05em / 行間1.25（スッキリ） */
     .feedback-container { 
         background-color: #fff9f0; padding: 12px 18px; border-radius: 15px; 
         border-left: 8px solid #f39c12; margin-top: 10px; white-space: pre-line;
@@ -43,7 +37,7 @@ st.markdown("""
     }
     .feedback-container * { margin-top: 0px !important; margin-bottom: 2px !important; }
     
-    /* 英文(bタグ)はCentury */
+    /* 英文(bタグ)はCenturyを指定 */
     .feedback-container b, .feedback-container strong { 
         font-family: "Century", "Times New Roman", serif; font-size: 1.05em;
         color: #784212; background-color: #fff3e0; padding: 0 2px;
@@ -63,7 +57,7 @@ st.markdown("""
 
 st.markdown("<h1 class='main-title'>基礎シリーズ_英語②_T_重要文例</h1>", unsafe_allow_html=True)
 
-# 2. セッション変数の初期化
+# 2. 変数の初期化
 for key in ['finished', 'score', 'current_idx', 'show_feedback', 'current_list', 'feedback_text']:
     if key not in st.session_state:
         st.session_state[key] = False if 'finished' in key or 'show' in key else (0 if 'idx' in key or 'score' in key else None)
@@ -75,7 +69,7 @@ if 'all_questions' not in st.session_state:
         df.columns = df.columns.str.strip().str.lower()
         st.session_state.all_questions = df.to_dict('records')
     except:
-        st.error("questions.csvが読み込めません。")
+        st.error("questions.csvが見つかりません。")
         st.stop()
 
 # 4. サイドバー
@@ -108,14 +102,13 @@ if st.session_state.finished:
         st.rerun()
     st.stop()
 
-# 現在の問題
 q = st.session_state.current_list[st.session_state.current_idx]
 ans_text = q.get('english', q.get('answer', ''))
 
 st.markdown(f"<div class='q-label'>第{st.session_state.current_idx + 1}問 / {len(st.session_state.current_list)}</div>", unsafe_allow_html=True)
 st.markdown(f"<div class='q-text'>{q.get('japanese', '')}</div>", unsafe_allow_html=True)
 
-# 6. ヒント機能（手動再生に徹底固定）
+# 6. ヒント
 with st.expander("💡 ヒント"):
     h_col1, h_col2 = st.columns(2)
     with h_col1:
@@ -126,7 +119,7 @@ with st.expander("💡 ヒント"):
             af_h = io.BytesIO(); tts_h.write_to_fp(af_h)
             st.audio(af_h, autoplay=False)
 
-# 7. 解答用タブ
+# 7. タブ
 tab1, tab2, tab3, tab4 = st.tabs(["📷 写真", "⌨️ 打ち込み", "🎤 音声", "💬 報告"])
 img_for_ai = None
 with tab1:
@@ -149,39 +142,40 @@ with c1:
             with st.spinner("添削中..."):
                 try:
                     genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
-                    # 404対策：最新のモデル名を自動取得
                     available = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
                     model_name = next((m for m in available if 'flash' in m), 'gemini-1.5-flash')
                     model = genai.GenerativeModel(model_name)
                     
-                    # 音声認識捏造禁止指示を含む最強プロンプト
-                    prompt = f"""英語講師として厳格かつ前向きに添削。
+                    # プロンプトの更新：Century適用と和訳・空行の指示
+                    prompt = f"""英語講師として厳格に添削してください。
                     日本文：『{q.get('japanese','')}』
                     模範解答：『{ans_text}』
                     
                     【出力構成】
-                    1行目：評価（正解！、惜しい！等）
-                    2行目：あなたの解答：[音声なら聞こえた通りに書き起こす。捏造厳禁。]
+                    1行目：評価の言葉
+                    2行目：あなたの解答：<b>[ここに生徒の解答をCentury体で表示]</b>
+                    (※2行目の後は必ず1行空けてください)
                     3行目以降：解説
 
                     【ルール】
-                    - 解説内の引用は <b> </b> タグで囲む。
-                    - 「英文」という文字、記号 ** は禁止。
-                    - 不合格は使用禁止。前向きに励ます。
+                    - 解説内の英文引用は必ず <b> </b> タグで囲むこと。
+                    - 解説の中で英文の「和訳」を出すときは、必ず「 」をつけてください。
+                    - 「英文」という文字、記号 ** は絶対に出力しない。
+                    - 文法的に正しければ別解も正解とする。
+                    - 「不合格」は禁止。前向きに。英文に「」はつけない。
                     - 正解なら必ず「正解です」を含める。"""
 
-                    inp = [prompt]
-                    if img_for_ai: inp.append(img_for_ai)
-                    elif audio_data: inp.append({"mime_type": "audio/wav", "data": audio_data.read()})
-                    else: inp.append(f"生徒の解答：{typed_ans}")
+                    input_data = [prompt]
+                    if img_for_ai: input_data.append(img_for_ai)
+                    elif audio_data: input_data.append({"mime_type": "audio/wav", "data": audio_data.read()})
+                    else: input_data.append(f"生徒の解答：{typed_ans}")
 
-                    res = model.generate_content(inp)
-                    # 物理フィルター
-                    f_text = re.sub(r'[\*「」『』]', '', res.text).replace("英文：", "").replace("英文", "")
-                    st.session_state.feedback_text, st.session_state.show_feedback = f_text, True
-                    if any(w in f_text for w in ["正解", "Perfect", "お見事"]):
+                    res = model.generate_content(input_data)
+                    f_text = re.sub(r'[\*「」『』]', '', res.text, count=2) # 冒頭の記号のみ削除
+                    st.session_state.feedback_text, st.session_state.show_feedback = res.text.replace("**", ""), True
+                    if any(w in res.text for w in ["正解", "Perfect", "お見事"]):
                         st.session_state.score += 1; st.balloons()
-                except Exception as e: st.error(f"接続エラー: {e}")
+                except Exception as e: st.error(f"エラー: {e}")
 
 with c2:
     if st.button("次へ進む ➔"):
@@ -189,8 +183,8 @@ with c2:
         if st.session_state.current_idx >= len(st.session_state.current_list): st.session_state.finished = True
         st.session_state.show_feedback = False; st.rerun()
 
-# 9. 添削結果表示
+# 9. 結果表示
 if st.session_state.show_feedback:
     st.markdown(f"<div class='feedback-container'>{st.session_state.feedback_text}<div class='model-answer-text'>模範解答：{ans_text}</div></div>", unsafe_allow_html=True)
     tts_ans = gTTS(ans_text, lang='en'); af_ans = io.BytesIO(); tts_ans.write_to_fp(af_ans)
-    st.audio(af_ans, autoplay=False) # 模範解答も手動再生
+    st.audio(af_ans, autoplay=False)
