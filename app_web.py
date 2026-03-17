@@ -14,9 +14,10 @@ import re
 # 1. ページ設定
 st.set_page_config(page_title="基礎シリーズ_英語②_T_重要文例", layout="centered")
 
-# CSS: 文字サイズと行間の統一
+# CSS: フォントの使い分けと文字サイズの統一
 st.markdown("""
 <style>
+    /* 全体のフォント設定：日本語は明朝体、英語はCentury系 */
     html, body, [class*="css"] {
         font-family: "MS PMincho", "Hiragino Mincho ProN", serif;
     }
@@ -28,7 +29,22 @@ st.markdown("""
         font-family: 'serif'; margin-bottom: 15px;
     }
     
-    /* 解説エリア：文字サイズを1.05emに統一 */
+    /* 第〇問ラベルと問題文のサイズを統一 */
+    .q-label {
+        font-size: 1.2em;
+        color: #784212;
+        font-weight: bold;
+        margin-bottom: 2px;
+    }
+    .q-text {
+        font-size: 1.2em; /* ラベルと同じサイズに統一 */
+        color: #784212;
+        font-weight: bold;
+        margin-top: 0px;
+        margin-bottom: 15px;
+    }
+
+    /* 解説エリア */
     .feedback-container { 
         background-color: #fff9f0; 
         padding: 12px 18px; 
@@ -37,7 +53,7 @@ st.markdown("""
         margin-top: 10px; 
         white-space: pre-line;
         line-height: 1.25 !important;
-        font-size: 1.05em; /* ここを基準に統一 */
+        font-size: 1.05em;
         color: #4e342e;
     }
     
@@ -46,19 +62,19 @@ st.markdown("""
         margin-bottom: 2px !important;
     }
 
-    /* 解説中の英文(bタグ)も、周りの文字サイズ(1.05em)に合わせる */
+    /* 解説中の英文(bタグ) */
     .feedback-container b, .feedback-container strong { 
         font-family: "Century", "Times New Roman", serif; 
-        font-size: 1.05em; /* 解説文と同一サイズに */
+        font-size: 1.05em;
         color: #784212; 
         background-color: #fff3e0; 
         padding: 0 2px;
     }
     
-    /* 模範解答エリア：指示通り解説文と同じサイズに変更 */
+    /* 模範解答（最下部） */
     .model-answer-text { 
         font-family: "Century", "Times New Roman", serif;
-        font-size: 1.05em; /* ここも1.05emに統一 */
+        font-size: 1.05em;
         font-weight: bold; 
         margin-top: 8px !important; 
         color: #784212; 
@@ -111,7 +127,7 @@ if st.sidebar.button("学習スタート"):
         st.session_state.finished, st.session_state.show_feedback = False, False
         st.rerun()
 
-# 5. メイン制御
+# 5. メイン画面制御
 if st.session_state.current_list is None:
     st.info("👈 左のメニューから講を選んでスタートしてください。")
     st.stop()
@@ -127,8 +143,9 @@ if st.session_state.finished:
 q = st.session_state.current_list[st.session_state.current_idx]
 ans_text = q.get('english', q.get('answer', ''))
 
-st.write(f"### 第{st.session_state.current_idx + 1}問 / {len(st.session_state.current_list)}")
-st.write(f"## {q.get('japanese', '')}")
+# 表示：ラベルと問題文のサイズを統一
+st.markdown(f"<div class='q-label'>第{st.session_state.current_idx + 1}問 / {len(st.session_state.current_list)}</div>", unsafe_allow_html=True)
+st.markdown(f"<div class='q-text'>{q.get('japanese', '')}</div>", unsafe_allow_html=True)
 
 # 6. ヒント機能
 with st.expander("💡 ヒント（文字または音声）"):
@@ -138,7 +155,6 @@ with st.expander("💡 ヒント（文字または音声）"):
             words = ans_text.split()
             st.info(f"冒頭: {' '.join(words[:3])} ...")
     with h_col2:
-        # 指示1：即時再生するように修正
         if st.button("音声を聞く"):
             tts_h = gTTS(ans_text, lang='en')
             af_h = io.BytesIO()
