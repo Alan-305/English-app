@@ -3,3 +3,7 @@ toolbarMode = "minimal"
 
 [browser]
 showDeployButton = false
+gatherUsageStats = false
+
+[ui]
+hideTopBar = true
