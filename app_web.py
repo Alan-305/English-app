@@ -6,7 +6,6 @@ import io
 import random
 from PIL import Image
 from streamlit_cropper import st_cropper
-import requests
 import re
 
 # --- 1. ページ設定 ---
@@ -44,10 +43,10 @@ if 'all_questions' not in st.session_state:
         df.columns = df.columns.str.strip().str.lower()
         st.session_state.all_questions = df.to_dict('records')
     except:
-        st.error("questions.csvが読み込めません。GitHub上のファイル名と列名を確認してください。")
+        st.error("questions.csvが読み込めません。")
         st.stop()
 
-# --- 4. サイドバー（ランダム機能 復活） ---
+# --- 4. サイドバー（設定） ---
 st.sidebar.title("📚 Menu")
 if st.sidebar.button("最初からリセット"):
     st.session_state.clear()
@@ -85,7 +84,21 @@ ans_text = q.get('english', q.get('answer', ''))
 st.write(f"### 第{st.session_state.current_idx + 1}問 / {len(st.session_state.current_list)}")
 st.write(f"## {q.get('japanese', '')}")
 
-# --- 6. タブ機能（「報告」も復活） ---
+# --- 6. ヒント機能（【復活】） ---
+with st.expander("💡 ヒント（文字または音声）"):
+    h_col1, h_col2 = st.columns(2)
+    with h_col1:
+        if st.button("文字で見る"):
+            words = ans_text.split()
+            st.info(f"冒頭: {' '.join(words[:3])} ...")
+    with h_col2:
+        if st.button("音声を聞く"):
+            tts_h = gTTS(ans_text, lang='en')
+            af_h = io.BytesIO()
+            tts_h.write_to_fp(af_h)
+            st.audio(af_h, autoplay=True)
+
+# --- 7. タブ機能（4タブ完備） ---
 tab1, tab2, tab3, tab4 = st.tabs(["📷 写真", "⌨️ 打ち込み", "🎤 音声", "💬 報告"])
 
 img_for_ai = None
@@ -108,33 +121,32 @@ with tab4:
         if st.form_submit_button("送信"):
             st.success("報告を受け付けました。ありがとうございます。")
 
-# --- 7. 採点ロジック（404エラー完全対策版） ---
+# --- 8. 採点ロジック ---
 st.markdown("---")
 col1, col2 = st.columns(2)
 
 with col1:
     if st.button("🚀 採点する"):
         if not (typed_ans or audio_data or img_for_ai):
-            st.warning("⚠️ 写真、打ち込み、音声のいずれかで解答してください。")
+            st.warning("⚠️ 解答を入力してください。")
         else:
-            with st.spinner("AI先生が接続を確認中..."):
+            with st.spinner("AI先生が確認中..."):
                 try:
                     genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
                     
-                    # 404対策：利用可能な最新モデルをリストから検索して自動選択
+                    # 404対策：利用可能なモデルを自動取得
                     available_models = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
-                    # flashが含まれるモデルを優先的に探す
-                    target_model_name = next((m for m in available_models if 'flash' in m), available_models[0])
-                    model = genai.GenerativeModel(target_model_name)
+                    target_model = next((m for m in available_models if 'flash' in m), available_models[0])
+                    model = genai.GenerativeModel(target_model)
                     
-                    prompt = f"英語講師として添削して。日本文『{q.get('japanese','')}』に対し、模範解答『{ans_text}』と比較して。文法的に正しければ別解も正解(Perfect!)として。不合格という言葉、記号、カギカッコは禁止。前向きに励まして。正解なら必ず「正解です」と含めて。"
+                    prompt = f"英語講師として添削して。日本文『{q.get('japanese','')}』、模範解答『{ans_text}』。別解も正解(Perfect!)として。不合格という言葉、記号、カギカッコは禁止。前向きに励まして。正解なら必ず「正解です」と含めて。"
 
                     if img_for_ai:
                         response = model.generate_content([prompt, img_for_ai])
                     elif audio_data:
                         response = model.generate_content([prompt, {"mime_type": "audio/wav", "data": audio_data.read()}])
                     else:
-                        response = model.generate_content(f"{prompt}\n生徒の回答：{typed_ans}")
+                        response = model.generate_content(f"{prompt}\n生徒解答：{typed_ans}")
                     
                     # 記号の徹底排除フィルター
                     clean_text = re.sub(r'[\*「」『』]', '', response.text)
@@ -142,7 +154,7 @@ with col1:
                     if "正解です" in clean_text:
                         st.session_state.score += 1
                 except Exception as e:
-                    st.error(f"接続エラー（404/401）が発生しました。設定を再確認してください: {e}")
+                    st.error(f"接続エラーが発生しました: {e}")
 
 with col2:
     if st.button("次へ進む ➔"):
