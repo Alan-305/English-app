@@ -15,16 +15,30 @@ import re
 # 1. ページ設定
 st.set_page_config(page_title="基礎シリーズ_英語②_T_重要文例", layout="centered")
 
-# CSS: 明朝/Century/行間/サイズ
+# CSS: 先生こだわりのデザイン（タイトル1.2em / 明朝・Century / 行間圧縮）
 st.markdown("""
 <style>
     html, body, [class*="css"] { font-family: "MS PMincho", "Hiragino Mincho ProN", serif; }
     .stApp { background: linear-gradient(135deg, #ffffff 0%, #fff3e0 100%); }
     .main-title { color: #e67e22; text-align: center; font-weight: 700; font-size: 1.2em; padding: 8px 0; border-bottom: 3px solid #ffcc80; margin-bottom: 12px; }
     .q-label, .q-text { font-size: 1.2em; color: #784212; font-weight: bold; }
-    .feedback-container { background-color: #fff9f0; padding: 12px 18px; border-radius: 15px; border-left: 8px solid #f39c12; margin-top: 10px; white-space: pre-line; line-height: 1.25 !important; font-size: 1.05em; color: #4e342e; }
-    .feedback-container b, .feedback-container strong { font-family: "Century", serif; font-size: 1.05em; color: #784212; background-color: #fff3e0; padding: 0 2px; }
-    .model-answer-text { font-family: "Century", serif; font-size: 1.05em; font-weight: bold; margin-top: 8px !important; color: #784212; border-top: 1px dashed #ffcc80; padding-top: 5px; }
+    
+    .feedback-container { 
+        background-color: #fff9f0; padding: 12px 18px; border-radius: 15px; 
+        border-left: 8px solid #f39c12; margin-top: 10px; white-space: pre-line; 
+        line-height: 1.25 !important; font-size: 1.05em; color: #4e342e; 
+    }
+    .feedback-container * { margin-top: 0px !important; margin-bottom: 2px !important; }
+    
+    /* 英文(bタグ)および「あなたの解答」はCenturyを指定 */
+    .feedback-container b, .feedback-container strong { 
+        font-family: "Century", "Times New Roman", serif; font-size: 1.05em; 
+        color: #784212; background-color: #fff3e0; padding: 0 2px; 
+    }
+    .model-answer-text { 
+        font-family: "Century", serif; font-size: 1.05em; font-weight: bold; 
+        margin-top: 8px !important; color: #784212; border-top: 1px dashed #ffcc80; padding-top: 5px; 
+    }
     div.stButton > button { background-color: #f39c12 !important; color: white !important; border-radius: 15px !important; height: 3.5em !important; font-weight: bold !important; width: 100%; }
 </style>
 """, unsafe_allow_html=True)
@@ -46,21 +60,27 @@ if 'all_questions' not in st.session_state:
         st.error("questions.csvが見つかりません。")
         st.stop()
 
-# 4. サイドバー
+# 4. サイドバー：ランダム出題設定を再配置
 st.sidebar.title("📚 Menu")
 if st.sidebar.button("リセット"):
     st.session_state.clear(); st.rerun()
 
 all_kous = sorted(list(set([str(q.get('kou', '1')) for q in st.session_state.all_questions])))
 selected_kous = st.sidebar.multiselect("講を選択", all_kous)
+# 指示：ランダムの選択肢を復活
+order_type = st.sidebar.radio("出題順", ["順番通り", "ランダム"])
+
 if st.sidebar.button("学習スタート"):
     if selected_kous:
         data = [q for q in st.session_state.all_questions if str(q.get('kou', '1')) in selected_kous]
+        # 指示：ランダムならシャッフルする
+        if order_type == "ランダム":
+            random.shuffle(data)
         st.session_state.current_list, st.session_state.current_idx, st.session_state.score = data, 0, 0
         st.session_state.finished, st.session_state.show_feedback = False, False; st.rerun()
 
 if st.session_state.current_list is None:
-    st.info("👈 講を選んでスタートしてください。"); st.stop()
+    st.info("👈 左のメニューから講を選んでスタートしてください。"); st.stop()
 
 if st.session_state.finished:
     st.balloons(); st.success(f"終了！ スコア: {st.session_state.score} / {len(st.session_state.current_list)}")
@@ -95,7 +115,7 @@ with tab3:
     audio_data = st.audio_input("録音ボタンを押して解答", key=f"a_{st.session_state.current_idx}")
     if audio_data: input_type = "voice"
 
-# 指示：報告機能の実装（メールとシートに同時送信）
+# 7. 報告タブ
 with tab4:
     st.subheader("先生への報告")
     with st.form("report"):
@@ -105,16 +125,16 @@ with tab4:
             if user_name and report_msg:
                 with st.spinner("先生に送信中..."):
                     try:
-                        gas_url = st.secrets["GAS_WEBAPP_URL"]
+                        gas_url = st.secrets.get("GAS_WEBAPP_URL")
                         payload = {"name": user_name, "message": report_msg, "question": q.get('japanese', '')}
                         response = requests.post(gas_url, json=payload, timeout=10)
                         if response.status_code == 200:
-                            st.success(f"{user_name}様、先生にメッセージを送信しました。")
-                        else: st.error("送信に失敗しました。")
-                    except: st.error("送信エラー。Secretsの設定を確認してください。")
+                            st.success("先生にメッセージを送信しました。")
+                        else: st.error(f"送信失敗。URL設定を確認してください。")
+                    except Exception as e: st.error(f"エラー: {e}")
             else: st.warning("名前とメッセージを入力してください。")
 
-# 7. 採点
+# 8. 採点
 st.markdown("---")
 c1, c2 = st.columns(2)
 with c1:
@@ -126,9 +146,18 @@ with c1:
                     genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
                     available = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
                     model = genai.GenerativeModel(next((m for m in available if 'flash' in m), 'gemini-1.5-flash'))
+                    
+                    # 音声採点ルール（句読点不問） [cite: 2026-03-17]
                     voice_rule = "音声入力時は大文字小文字・句読点を一切不問とせよ。" if input_type == "voice" else ""
+                    
                     prompt = f"""英語講師として添削。日本文『{q.get('japanese','')}』、模範解答『{ans_text}』。{voice_rule}
-                    【構成】1:評価、2:あなたの解答(Century)、(空行)、3:解説(和訳は「」付)。不合格禁止。"""
+                    【構成】
+                    1行目:評価
+                    2行目:あなたの解答：<b>[生徒の解答をCentury体で表示]</b>
+                    (※2行目の後は必ず1行空ける)
+                    3行目以降:解説(和訳は「 」付)
+                    不合格禁止。正解なら「正解です」を含める。"""
+                    
                     inp = [prompt]
                     if img_for_ai: inp.append(img_for_ai)
                     elif audio_data: inp.append({"mime_type": "audio/wav", "data": audio_data.read()})
