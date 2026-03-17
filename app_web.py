@@ -14,10 +14,9 @@ import re
 # 1. ページ設定
 st.set_page_config(page_title="基礎シリーズ_英語②_T_重要文例", layout="centered")
 
-# CSS: 行間を極限まで詰め、フォントを指定
+# CSS: 文字サイズと行間の統一
 st.markdown("""
 <style>
-    /* 全体のフォント設定：日本語は明朝体、英語はCentury系 */
     html, body, [class*="css"] {
         font-family: "MS PMincho", "Hiragino Mincho ProN", serif;
     }
@@ -26,41 +25,40 @@ st.markdown("""
     .main-title { 
         color: #e67e22; text-align: center; font-weight: 700; 
         font-size: 1.5em; padding: 10px 0; border-bottom: 3px solid #ffcc80; 
-        margin-bottom: 15px;
+        font-family: 'serif'; margin-bottom: 15px;
     }
     
-    /* 解説エリア：行間と余白を徹底的に詰める */
+    /* 解説エリア：文字サイズを1.05emに統一 */
     .feedback-container { 
         background-color: #fff9f0; 
         padding: 12px 18px; 
         border-radius: 15px; 
         border-left: 8px solid #f39c12; 
         margin-top: 10px; 
-        white-space: pre-line; /* 改行を保持しつつ余白を抑える */
-        line-height: 1.25 !important; /* 行間を非常に狭く設定 */
-        font-size: 1.05em;
+        white-space: pre-line;
+        line-height: 1.25 !important;
+        font-size: 1.05em; /* ここを基準に統一 */
         color: #4e342e;
     }
     
-    /* 解説エリア内の要素すべての余白を削る */
     .feedback-container * {
         margin-top: 0px !important;
         margin-bottom: 2px !important;
     }
 
-    /* 英文(bタグ): フォントをCentury系にし、サイズを調整 */
+    /* 解説中の英文(bタグ)も、周りの文字サイズ(1.05em)に合わせる */
     .feedback-container b, .feedback-container strong { 
         font-family: "Century", "Times New Roman", serif; 
-        font-size: 1.2em; 
+        font-size: 1.05em; /* 解説文と同一サイズに */
         color: #784212; 
         background-color: #fff3e0; 
         padding: 0 2px;
     }
     
-    /* 模範解答（最下部） */
+    /* 模範解答エリア：指示通り解説文と同じサイズに変更 */
     .model-answer-text { 
         font-family: "Century", "Times New Roman", serif;
-        font-size: 1.3em; 
+        font-size: 1.05em; /* ここも1.05emに統一 */
         font-weight: bold; 
         margin-top: 8px !important; 
         color: #784212; 
@@ -132,6 +130,7 @@ ans_text = q.get('english', q.get('answer', ''))
 st.write(f"### 第{st.session_state.current_idx + 1}問 / {len(st.session_state.current_list)}")
 st.write(f"## {q.get('japanese', '')}")
 
+# 6. ヒント機能
 with st.expander("💡 ヒント（文字または音声）"):
     h_col1, h_col2 = st.columns(2)
     with h_col1:
@@ -139,13 +138,14 @@ with st.expander("💡 ヒント（文字または音声）"):
             words = ans_text.split()
             st.info(f"冒頭: {' '.join(words[:3])} ...")
     with h_col2:
+        # 指示1：即時再生するように修正
         if st.button("音声を聞く"):
             tts_h = gTTS(ans_text, lang='en')
             af_h = io.BytesIO()
             tts_h.write_to_fp(af_h)
-            st.audio(af_h, autoplay=False)
+            st.audio(af_h, autoplay=True)
 
-# 6. タブ
+# 7. タブ
 tab1, tab2, tab3, tab4 = st.tabs(["📷 写真", "⌨️ 打ち込み", "🎤 音声", "💬 報告"])
 
 img_for_ai = None
@@ -167,7 +167,7 @@ with tab4:
         st.text_area("メッセージ")
         if st.form_submit_button("送信"): st.success("報告を受け付けました！")
 
-# 7. 採点 & Next
+# 8. 操作ボタン
 st.markdown("---")
 col1, col2 = st.columns(2)
 
@@ -183,31 +183,28 @@ with col1:
                     target_model = next((m for m in models if 'flash' in m), models[0])
                     model = genai.GenerativeModel(target_model)
                     
-                    prompt = f"""経験豊富な英語講師として添削してください。
+                    prompt = f"""英語講師として添削してください。
                     日本文：『{q.get('japanese','')}』
                     模範解答：『{ans_text}』
                     
                     【出力構成】
                     1行目：評価の言葉
                     2行目：あなたの解答：[ここに生徒の解答を表示]
-                    3行目以降：解説（要点を絞り、行間を詰めやすいよう簡潔に）
+                    3行目以降：解説
 
                     【ルール】
-                    - 解説内の英文引用は <b> </b> タグで囲むこと。
+                    - 解説内の英文引用は <b> </b> タグで囲む。
                     - 「英文」という文字は出力しない。
                     - 文法的に正しければ別解も正解(Perfect!)とする。
-                    - 「不合格」という言葉、記号 ** は絶対禁止。
-                    - 前向きに励ます。正解なら「正解です」を含める。"""
+                    - 「不合格」という言葉、記号 ** は禁止。
+                    - 正解なら「正解です」を含める。"""
 
-                    # 入力データの準備
                     content = [prompt]
                     if img_for_ai: content.append(img_for_ai)
                     elif audio_data: content.append({"mime_type": "audio/wav", "data": audio_data.read()})
                     else: content.append(f"生徒の解答：{typed_ans}")
 
                     response = model.generate_content(content)
-                    
-                    # 記号削除と、連続した改行を1つにまとめる処理
                     f_text = response.text.replace("**", "").replace("「英文」", "").replace("英文：", "")
                     f_text = re.sub(r'\n\s*\n', '\n', f_text) 
                     
@@ -226,7 +223,7 @@ with col2:
         st.session_state.show_feedback = False
         st.rerun()
 
-# 8. 結果表示
+# 9. 結果表示
 if st.session_state.show_feedback:
     st.markdown(f"<div class='feedback-container'>{st.session_state.feedback_text}<div class='model-answer-text'>模範解答：{ans_text}</div></div>", unsafe_allow_html=True)
     tts = gTTS(ans_text, lang='en')
