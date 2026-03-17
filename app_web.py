@@ -14,81 +14,39 @@ import re
 # 1. ページ設定
 st.set_page_config(page_title="基礎シリーズ_英語②_T_重要文例", layout="centered")
 
-# CSS: タイトルサイズを1.5emから1.2emへ縮小
+# CSS: 先生こだわりのデザイン設定
 st.markdown("""
 <style>
-    /* 全体のフォント設定：日本語は明朝体、英語はCentury系 */
     html, body, [class*="css"] {
         font-family: "MS PMincho", "Hiragino Mincho ProN", serif;
     }
-    
     .stApp { background: linear-gradient(135deg, #ffffff 0%, #fff3e0 100%); }
-    
-    /* 指示：タイトルの文字サイズを少し小さく(1.2em) */
     .main-title { 
         color: #e67e22; text-align: center; font-weight: 700; 
         font-size: 1.2em; padding: 8px 0; border-bottom: 3px solid #ffcc80; 
         font-family: 'serif'; margin-bottom: 12px;
     }
-    
-    /* ラベルと問題文のサイズ統一 */
-    .q-label {
-        font-size: 1.2em;
-        color: #784212;
-        font-weight: bold;
-        margin-bottom: 2px;
-    }
-    .q-text {
-        font-size: 1.2em;
-        color: #784212;
-        font-weight: bold;
-        margin-top: 0px;
-        margin-bottom: 15px;
-    }
-
-    /* 解説エリア：行間と余白を詰める */
+    .q-label { font-size: 1.2em; color: #784212; font-weight: bold; margin-bottom: 2px; }
+    .q-text { font-size: 1.2em; color: #784212; font-weight: bold; margin-top: 0px; margin-bottom: 15px; }
     .feedback-container { 
-        background-color: #fff9f0; 
-        padding: 12px 18px; 
-        border-radius: 15px; 
-        border-left: 8px solid #f39c12; 
-        margin-top: 10px; 
-        white-space: pre-line;
-        line-height: 1.25 !important;
-        font-size: 1.05em;
-        color: #4e342e;
+        background-color: #fff9f0; padding: 12px 18px; border-radius: 15px; 
+        border-left: 8px solid #f39c12; margin-top: 10px; white-space: pre-line;
+        line-height: 1.25 !important; font-size: 1.05em; color: #4e342e;
     }
-    
-    .feedback-container * {
-        margin-top: 0px !important;
-        margin-bottom: 2px !important;
-    }
-
-    /* 解説中の英文(bタグ) */
+    .feedback-container * { margin-top: 0px !important; margin-bottom: 2px !important; }
     .feedback-container b, .feedback-container strong { 
-        font-family: "Century", "Times New Roman", serif; 
-        font-size: 1.05em;
-        color: #784212; 
-        background-color: #fff3e0; 
-        padding: 0 2px;
+        font-family: "Century", "Times New Roman", serif; font-size: 1.05em;
+        color: #784212; background-color: #fff3e0; padding: 0 2px;
     }
-    
-    /* 模範解答 */
     .model-answer-text { 
-        font-family: "Century", "Times New Roman", serif;
-        font-size: 1.05em;
-        font-weight: bold; 
-        margin-top: 8px !important; 
-        color: #784212; 
-        border-top: 1px dashed #ffcc80; 
-        padding-top: 5px; 
+        font-family: "Century", "Times New Roman", serif; font-size: 1.05em;
+        font-weight: bold; margin-top: 8px !important; color: #784212; 
+        border-top: 1px dashed #ffcc80; padding-top: 5px; 
     }
-
     div.stButton > button { 
         background-color: #f39c12 !important; color: white !important; 
         border-radius: 15px !important; height: 3.5em !important; 
-        font-size: 1.1em !important; font-weight: bold !important; 
-        width: 100%;
+        font-size: 1.1em !important; font-weight: bold !important; width: 100%;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -145,7 +103,6 @@ if st.session_state.finished:
 q = st.session_state.current_list[st.session_state.current_idx]
 ans_text = q.get('english', q.get('answer', ''))
 
-# 表示
 st.markdown(f"<div class='q-label'>第{st.session_state.current_idx + 1}問 / {len(st.session_state.current_list)}</div>", unsafe_allow_html=True)
 st.markdown(f"<div class='q-text'>{q.get('japanese', '')}</div>", unsafe_allow_html=True)
 
@@ -176,7 +133,8 @@ with tab2:
     typed_ans = st.text_input("回答を入力", key=f"t_{st.session_state.current_idx}")
 
 with tab3:
-    audio_data = st.audio_input("声に出して解答", key=f"a_{st.session_state.current_idx}")
+    st.write("ボタンを押して話し、もう一度押して停止してください。")
+    audio_data = st.audio_input("ここを押して録音", key=f"a_{st.session_state.current_idx}")
 
 with tab4:
     st.subheader("先生への報告")
@@ -197,30 +155,38 @@ with col1:
             with st.spinner("添削中..."):
                 try:
                     genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
-                    models = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
-                    target_model = next((m for m in models if 'flash' in m), models[0])
-                    model = genai.GenerativeModel(target_model)
+                    # 404対策：最新のflashモデルを明示的に指定
+                    model = genai.GenerativeModel('gemini-1.5-flash')
                     
-                    prompt = f"""英語講師として添削してください。
-                    日本文：『{q.get('japanese','')}』
-                    模範解答：『{ans_text}』
+                    # 音声精度を高めるための強力なプロンプト
+                    prompt = f"""経験豊富な英語講師として添削してください。
+                    
+                    【最優先指令：音声認識】
+                    もし入力が音声データの場合、背景ノイズに惑わされず、生徒が話した英語を極めて正確に文字起こししてください。
                     
                     【出力構成】
-                    1行目：評価の言葉
-                    2行目：あなたの解答：[ここに生徒の解答を表示]
+                    1行目：評価の言葉（例：正解です！、惜しい！など）
+                    2行目：あなたの解答：[書き起こした英文、または入力された英文]
                     3行目以降：解説
+
+                    日本文：『{q.get('japanese','')}』
+                    模範解答：『{ans_text}』
 
                     【ルール】
                     - 解説内の英文引用は <b> </b> タグで囲む。
-                    - 「英文」という文字は出力しない。
+                    - 「英文」という文字は絶対に出力しない。
                     - 文法的に正しければ別解も正解(Perfect!)とする。
-                    - 「不合格」という言葉、記号 ** は禁止。
+                    - 「不合格」は禁止。前向きに励ます。
                     - 正解なら「正解です」を含める。"""
 
                     content = [prompt]
-                    if img_for_ai: content.append(img_for_ai)
-                    elif audio_data: content.append({"mime_type": "audio/wav", "data": audio_data.read()})
-                    else: content.append(f"生徒の解答：{typed_ans}")
+                    if img_for_ai:
+                        content.append(img_for_ai)
+                    elif audio_data:
+                        # 音声データを渡す
+                        content.append({"mime_type": "audio/wav", "data": audio_data.read()})
+                    else:
+                        content.append(f"生徒の解答：{typed_ans}")
 
                     response = model.generate_content(content)
                     f_text = response.text.replace("**", "").replace("「英文」", "").replace("英文：", "")
@@ -231,7 +197,7 @@ with col1:
                         st.session_state.score += 1
                         st.balloons()
                 except Exception as e:
-                    st.error(f"エラー: {e}")
+                    st.error(f"接続エラー: {e}")
 
 with col2:
     if st.button("次へ進む ➔"):
